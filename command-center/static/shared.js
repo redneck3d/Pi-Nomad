@@ -8,6 +8,10 @@ async function api(path, body) {
   const res = await fetch(path, body === undefined ? {} : {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const data = await res.json().catch(() => ({}));
+  if (res.status === 401 && data.locked) {      // admin PIN needed: ask for it, then try again
+    if (typeof Admin !== "undefined" && await Admin.unlock()) return api(path, body);
+    throw new Error("The admin PIN is needed for that.");
+  }
   if (!res.ok || data.error) throw new Error(data.error || res.statusText);
   return data;
 }

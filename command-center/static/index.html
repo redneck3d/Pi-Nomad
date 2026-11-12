@@ -49,6 +49,7 @@
   <p>Command Center &middot; knowledge that never goes offline</p>
 </header>
 <div class="wrap">
+  <div id="admin" style="margin-top:.8rem"></div>
   <h3>Apps</h3>
   <div class="tiles" id="tiles"></div>
 
@@ -63,7 +64,9 @@
   <div class="panel" id="zims"><span class="empty">Loading&hellip;</span></div>
 </div>
 
+<script src="/auth.js"></script>
 <script>
+Admin.mount(document.getElementById("admin"));
 // Add or remove apps here. `svc` is the compose service name used for the status dot.
 const APPS = [
   { svc:"kiwix",       ico:"📚", name:"Information Library", desc:"Offline Wikipedia, medical references and survival guides.", port:8080 },

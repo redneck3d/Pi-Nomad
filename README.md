@@ -15,6 +15,7 @@ An offline-first knowledge server for a Raspberry Pi 5, modeled on [Project NOMA
 | Education (Kolibri) | commented out in compose | Need arm64 image |
 | Your own books (not in NOMAD) | Bookshelf at `/books/`: lists EPUB and PDF files from `/srv/nomad/books`, built-in EPUB reader | Built and browser-tested with generated books; not yet tried with real ones |
 | System info | System panel on the dashboard: temperature, fan, processor, memory, uptime, drive writes, clock check, power and heat warnings | Built; tested with simulated Pi readings, not on a real Pi |
+| Admin lock (not in NOMAD) | Optional admin PIN: reading stays open, downloads and deletes need the PIN | Built; tested in a browser |
 | Command Center (dashboard) | `command-center` (Python, no deps) | Done: tiles, live status, storage, content and map managers. Start/stop buttons are next |
 | Setup wizard + content collections | `install.sh` + Content Manager collections | Collections done; no first-run wizard yet |
 | Auto updates | none | Phase 3 (Watchtower or cron) |
@@ -53,9 +54,18 @@ Put EPUB and PDF files in `/srv/nomad/books` (subfolders are fine) and they appe
 
 To add books: `sudo cp -r /path/to/books/* /srv/nomad/books/` on the Pi, or upload through the Files app.
 
+## Admin PIN
+
+Set a PIN from the banner at the top of the dashboard. After that, anyone on the network can still read everything, but downloading, deleting and other changes ask for the PIN. An unlocked device stays unlocked for 12 hours or until you press Lock. Five wrong tries cause a pause that grows with each further try.
+
+- Forgot it: `docker compose exec command-center python auth.py reset`, then set a new one.
+- The PIN is stored only as a salted hash in its own Docker volume (`nomad-config`).
+- **It does not cover the other apps.** Files (port 8083) can still change or delete anything under `/srv/nomad`, and Notes is open to everyone. Files has its own login; check how it behaves on first run.
+- Traffic is plain HTTP, so the PIN is only as private as your Wi-Fi password.
+
 ## What has been verified (2026-11-08)
 
-Unit tests (`cd command-center && python3 tests/test_backend.py`, 25 tests) cover resuming a dropped download, path-traversal checks, Range requests and library writing. The map viewer was loaded in real Chrome against a generated test map. The live services were then checked from a real browser:
+Unit tests (`cd command-center && python3 tests/test_backend.py`, 30 tests) cover resuming a dropped download, path-traversal checks, Range requests and library writing. The map viewer was loaded in real Chrome against a generated test map. The live services were then checked from a real browser:
 
 - **Kiwix catalog:** the real feed format is parsed (the parser test uses an entry copied from the live catalog). The catalog moved to `opds.library.kiwix.org`, and download links use `lb.download.kiwix.org`; both are handled. Kiwix publishes variants (nopic, mini, maxi) under one name, so presets pick a flavour. All 7 collections resolve against the live catalog with the sizes shown in their descriptions.
 - **library.xml:** the attributes written match what libkiwix 14.2.1 (used by kiwix-tools 3.8.2) reads. The next libkiwix, currently unreleased, switches this file to a different format, so the compose file pins `kiwix-serve:3.8.2`. Don't change that tag without re-checking.
@@ -77,5 +87,5 @@ Unit tests (`cd command-center && python3 tests/test_backend.py`, 25 tests) cove
 
 ## Notes
 
-- Like NOMAD there is no auth, so keep it on the hotspot/LAN, not the open internet.
+- The admin PIN is a light lock for a private network, not real security. Keep the deck on the hotspot/LAN, not the open internet.
 - On 4GB RAM, skip full Wikipedia with images in memory-heavy use and prefer the nopic builds.

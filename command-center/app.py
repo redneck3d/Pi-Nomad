@@ -4,6 +4,7 @@ Serves the dashboard, the ZIM and map managers, offline map files (with HTTP Ran
 support, which PMTiles needs), and a small JSON API.
 """
 import http.client
+import http.cookies
 import json
 import os
 import shutil
@@ -13,6 +14,7 @@ import urllib.parse
 import zipfile
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
+import auth
 import books
 import jobs
 import maps
@@ -81,14 +83,53 @@ class Handler(SimpleHTTPRequestHandler):
         super().__init__(*a, directory=STATIC, **kw)
 
     # ----- helpers -----
-    def _json(self, obj, code=200):
+    def _json(self, obj, code=200, headers=()):
         body = json.dumps(obj).encode()
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        for k, v in headers:
+            self.send_header(k, v)
         self.end_headers()
         self.wfile.write(body)
+
+    # ----- admin PIN -----
+    def _token(self):
+        try:
+            c = http.cookies.SimpleCookie(self.headers.get("Cookie", ""))
+            return c["nomad_admin"].value if "nomad_admin" in c else ""
+        except http.cookies.CookieError:
+            return ""
+
+    def _session_cookie(self, token, max_age):
+        return [("Set-Cookie", f"nomad_admin={token}; Path=/; Max-Age={max_age}; HttpOnly; SameSite=Strict")]
+
+    def _auth_post(self, p, b):
+        """Handle /api/auth/* POSTs."""
+        if p == "/api/auth/unlock":
+            try:
+                ok = auth.verify(b.get("pin"))
+            except auth.TooManyAttempts as e:
+                return self._json({"error": str(e)}, 429)
+            if not ok:
+                return self._json({"error": "Wrong PIN" if auth.pin_set() else "No PIN is set"}, 403)
+            return self._json({"ok": True}, headers=self._session_cookie(auth.new_session(), auth.SESSION_HOURS * 3600))
+        if p == "/api/auth/lock":
+            auth.end_session(self._token())
+            return self._json({"ok": True}, headers=self._session_cookie("", 0))
+        if not auth.allowed(self._token()):          # set/clear need an unlocked session once a PIN exists
+            return self._json({"error": "locked", "locked": True}, 401)
+        if p == "/api/auth/set":
+            try:
+                auth.set_pin(b.get("pin"))
+            except ValueError as e:
+                return self._json({"error": str(e)}, 400)
+            return self._json({"ok": True}, headers=self._session_cookie(auth.new_session(), auth.SESSION_HOURS * 3600))
+        if p == "/api/auth/clear":
+            auth.clear_pin()
+            return self._json({"ok": True}, headers=self._session_cookie("", 0))
+        return self._json({"error": "not found"}, 404)
 
     def _body(self):
         n = int(self.headers.get("Content-Length") or 0)
@@ -227,6 +268,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self._cover(q.get("file", ""))
         if p == "/api/status":
             return self._json({"services": service_states(), "storage": storage(), "zims": zim.list_zims()})
+        if p == "/api/auth":
+            return self._json({"pin_set": auth.pin_set(), "unlocked": auth.valid(self._token())})
         if p == "/api/system":
             return self._guard(system.snapshot)
         if p == "/api/jobs":
@@ -249,6 +292,13 @@ class Handler(SimpleHTTPRequestHandler):
             b = self._body()
         except json.JSONDecodeError:
             return self._json({"error": "bad JSON"}, 400)
+        if not isinstance(b, dict):
+            return self._json({"error": "bad JSON"}, 400)
+        if p.startswith("/api/auth/"):
+            return self._auth_post(p, b)
+        # Every other POST changes something on the deck, so it needs the admin PIN (if one is set).
+        if not auth.allowed(self._token()):
+            return self._json({"error": "locked", "locked": True}, 401)
         if p == "/api/zim/download":
             return self._guard(lambda: zim.start_download(b["url"], b.get("meta", {})).public())
         if p == "/api/zim/delete":

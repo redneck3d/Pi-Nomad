@@ -15,12 +15,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 TMP = tempfile.mkdtemp()
 os.environ.update(NOMAD_DATA=TMP, ZIM_DIR=os.path.join(TMP, "zim"), MAPS_DIR=os.path.join(TMP, "maps"),
-                  BOOKS_DIR=os.path.join(TMP, "books"))
+                  BOOKS_DIR=os.path.join(TMP, "books"), CONFIG_DIR=os.path.join(TMP, "config"))
 os.makedirs(os.environ["ZIM_DIR"]); os.makedirs(os.environ["MAPS_DIR"]); os.makedirs(os.environ["BOOKS_DIR"])
 
 import zipfile  # noqa: E402
 
-import app, books, jobs, maps, system, zim  # noqa: E402
+import app, auth, books, jobs, maps, system, zim  # noqa: E402
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
 CH = '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>{0}</title></head><body><h1>{0}</h1><p>Text of {0}.</p>{1}</body></html>'
@@ -506,6 +506,101 @@ class SystemTests(unittest.TestCase):
         s = system.snapshot()
         self.assertEqual((s["temp_c"], s["fan_rpm"], s["memory"], s["disk"], s["uptime_s"]), (None, None, None, None, None))
         self.assertEqual((s["cpu"]["percent"], s["cpu"]["load"], s["warnings"]), (None, None, []))
+
+
+class AuthTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
+        threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
+        cls.base = f"http://127.0.0.1:{cls.srv.server_port}"
+        cls.iters, auth.ITERATIONS = auth.ITERATIONS, 1000      # keep the tests quick
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.srv.shutdown()
+        auth.ITERATIONS = cls.iters
+
+    def setUp(self):
+        auth.clear_pin()
+
+    def tearDown(self):
+        auth.clear_pin()        # leave the other test classes with no PIN set
+
+    def call(self, path, body=None, cookie=""):
+        """Returns (status, json, cookie value set by the reply or None)."""
+        req = urllib.request.Request(self.base + path, headers={"Cookie": cookie} if cookie else {},
+                                     data=None if body is None else json.dumps(body).encode())
+        try:
+            r = urllib.request.urlopen(req)
+        except urllib.error.HTTPError as e:
+            r = e
+        set_cookie = r.headers.get("Set-Cookie")
+        return r.status if hasattr(r, "status") else r.code, json.load(r), set_cookie
+
+    def test_open_until_a_pin_is_set(self):
+        self.assertEqual(self.call("/api/auth")[1], {"pin_set": False, "unlocked": False})
+        self.assertEqual(self.call("/api/zim/rescan", {})[0], 200)           # no PIN: actions still work
+        self.assertEqual(self.call("/api/auth/unlock", {"pin": "1234"})[0], 403)
+        self.assertEqual(self.call("/api/auth/set", {"pin": "123"})[0], 400)  # too short
+        self.assertFalse(auth.pin_set())
+
+    def test_pin_protects_every_changing_action_but_not_reading(self):
+        status, _, cookie = self.call("/api/auth/set", {"pin": "2468"})
+        self.assertEqual(status, 200)
+        self.assertIn("HttpOnly", cookie); self.assertIn("SameSite=Strict", cookie)
+        mine = cookie.split(";")[0]
+        for path, body in [("/api/zim/download", {"url": "https://download.kiwix.org/zim/a.zim"}),
+                           ("/api/zim/delete", {"file": "x.zim"}), ("/api/zim/rescan", {}),
+                           ("/api/jobs/cancel", {"id": "x"}), ("/api/maps/extract", {"region": "detroit", "detail": "overview"}),
+                           ("/api/maps/estimate", {"region": "detroit", "detail": "overview"}),
+                           ("/api/maps/delete", {"file": "x.pmtiles"}), ("/api/auth/set", {"pin": "0000"}),
+                           ("/api/auth/clear", {}), ("/api/anything-new", {})]:
+            status, data, _ = self.call(path, body)
+            self.assertEqual((status, data.get("locked")), (401, True), path)
+        for path in ["/api/status", "/api/books", "/api/system", "/api/maps/list", "/api/jobs", "/"]:
+            self.assertEqual(urllib.request.urlopen(self.base + path).status, 200, path)
+        self.assertEqual(self.call("/api/zim/rescan", {}, mine)[0], 200)      # the device that set it is unlocked
+        self.assertEqual(self.call("/api/auth", cookie=mine)[1], {"pin_set": True, "unlocked": True})
+        self.assertEqual(self.call("/api/zim/rescan", {}, "nomad_admin=made-up-token")[0], 401)
+
+    def test_unlock_lock_and_change(self):
+        auth.set_pin("2468")
+        self.assertEqual(self.call("/api/auth/unlock", {"pin": "1111"})[:2], (403, {"error": "Wrong PIN"}))
+        status, _, cookie = self.call("/api/auth/unlock", {"pin": "2468"})
+        mine = cookie.split(";")[0]
+        self.assertEqual((status, self.call("/api/zim/rescan", {}, mine)[0]), (200, 200))
+        self.assertEqual(self.call("/api/auth/lock", {}, mine)[0], 200)
+        self.assertEqual(self.call("/api/zim/rescan", {}, mine)[0], 401)       # locked again
+        mine = self.call("/api/auth/unlock", {"pin": "2468"})[2].split(";")[0]
+        newer = self.call("/api/auth/set", {"pin": "new-pin"}, mine)[2].split(";")[0]
+        self.assertEqual(self.call("/api/zim/rescan", {}, mine)[0], 401)       # changing the PIN signs old sessions out
+        self.assertEqual(self.call("/api/zim/rescan", {}, newer)[0], 200)
+        self.assertFalse(auth.verify("2468")); self.assertTrue(auth.verify("new-pin"))
+        self.assertEqual(self.call("/api/auth/clear", {}, newer)[0], 200)
+        self.assertEqual(self.call("/api/zim/rescan", {})[0], 200)             # no PIN: open again
+
+    def test_wrong_tries_cause_a_pause(self):
+        auth.set_pin("2468")
+        for _ in range(auth.MAX_FAILS):
+            self.assertEqual(self.call("/api/auth/unlock", {"pin": "nope"})[0], 403)
+        status, data, _ = self.call("/api/auth/unlock", {"pin": "2468"})       # even the right PIN must wait
+        self.assertEqual(status, 429); self.assertIn("Wait", data["error"])
+        auth._fails["until"] = time.time() - 1                                 # the pause has passed
+        self.assertEqual(self.call("/api/auth/unlock", {"pin": "2468"})[0], 200)
+        self.assertEqual(auth._fails["count"], 0)
+
+    def test_pin_is_stored_hashed_and_sessions_expire(self):
+        auth.set_pin("2468")
+        raw = open(os.path.join(auth.CONFIG_DIR, "admin.json")).read()
+        self.assertNotIn("2468", raw)
+        self.assertEqual(os.stat(os.path.join(auth.CONFIG_DIR, "admin.json")).st_mode & 0o777, 0o600)
+        token = auth.new_session()
+        self.assertTrue(auth.valid(token))
+        auth._sessions[token] = time.time() - 1
+        self.assertFalse(auth.valid(token))
+        open(os.path.join(auth.CONFIG_DIR, "admin.json"), "w").write("garbage")   # damaged file = no PIN, not a crash
+        self.assertFalse(auth.pin_set())
 
 
 if __name__ == "__main__":

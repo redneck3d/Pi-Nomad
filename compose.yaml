@@ -18,12 +18,15 @@ services:
     environment:
       NOMAD_DATA: /data
       COMPOSE_PROJECT: pi-nomad
+      CONFIG_DIR: /config
     volumes:
       - ${NOMAD_DATA:-/srv/nomad}:/data:ro
       # Only these two folders are writable: the ZIM and map managers download into them.
       # Paths match what the kiwix container sees (/data/zim/...), so library.xml stays valid.
       - ${NOMAD_DATA:-/srv/nomad}/zim:/data/zim
       - ${NOMAD_DATA:-/srv/nomad}/maps:/data/maps
+      # Admin PIN hash. A named volume, kept out of /srv/nomad so the Files app cannot touch it.
+      - nomad-config:/config
       - /var/run/docker.sock:/var/run/docker.sock:ro   # read-only status; start/stop comes later
 
   # ---- Information Library (Wikipedia, medical, survival ZIMs) ----
@@ -78,3 +81,6 @@ services:
 
 networks:
   nomad:
+
+volumes:
+  nomad-config:
