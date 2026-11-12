@@ -1,0 +1,80 @@
+# Pi-NOMAD: offline-first knowledge server for Raspberry Pi 5 (arm64)
+# Modeled on Project NOMAD, minus the AI stack.
+# Every service is a plain container; the Command Center at :80 links to all of them.
+# NOTE: image names/tags marked (verify) must be confirmed to ship arm64 builds.
+
+name: pi-nomad
+
+x-defaults: &defaults
+  restart: unless-stopped
+  networks: [nomad]
+
+services:
+  # ---- Front door: Command Center dashboard (apps, service status, storage) ----
+  command-center:
+    <<: *defaults
+    build: ./command-center
+    ports: ["80:80"]
+    environment:
+      NOMAD_DATA: /data
+      COMPOSE_PROJECT: pi-nomad
+    volumes:
+      - ${NOMAD_DATA:-/srv/nomad}:/data:ro
+      # Only these two folders are writable: the ZIM and map managers download into them.
+      # Paths match what the kiwix container sees (/data/zim/...), so library.xml stays valid.
+      - ${NOMAD_DATA:-/srv/nomad}/zim:/data/zim
+      - ${NOMAD_DATA:-/srv/nomad}/maps:/data/maps
+      - /var/run/docker.sock:/var/run/docker.sock:ro   # read-only status; start/stop comes later
+
+  # ---- Information Library (Wikipedia, medical, survival ZIMs) ----
+  kiwix:
+    <<: *defaults
+    # Pinned on purpose: libkiwix's unreleased main branch changes the library.xml format
+    # (to an Atom/OPDS feed), so a surprise ":latest" upgrade could break the Command Center's
+    # library writer. 3.8.2 uses libkiwix 14.2.1 (<library><book> format) and ships arm64.
+    image: ghcr.io/kiwix/kiwix-serve:3.8.2
+    ports: ["8080:8080"]
+    volumes:
+      - ${NOMAD_DATA:-/srv/nomad}/zim:/data/zim:ro
+    # The image's start script adds --port itself (default 8080).
+    # library.xml is watched, so adding a ZIM never needs a restart.
+    command: ["--library", "--monitorLibrary", "--threads=4", "/data/zim/library.xml"]
+
+  # ---- Notes (markdown, no auth, like NOMAD) ----
+  flatnotes:
+    <<: *defaults
+    image: dullage/flatnotes:latest
+    ports: ["8081:8080"]
+    environment:
+      FLATNOTES_AUTH_TYPE: none
+    volumes:
+      - ${NOMAD_DATA:-/srv/nomad}/notes:/data
+
+  # ---- Data tools: encode/decode/hash/crypto ----
+  cyberchef:
+    <<: *defaults
+    image: ghcr.io/gchq/cyberchef:latest   # (verify arm64)
+    ports: ["8082:8000"]
+
+  # ---- File manager for the data drive (ZIMs, PDFs, maps) ----
+  filebrowser:
+    <<: *defaults
+    image: filebrowser/filebrowser:latest
+    ports: ["8083:80"]
+    volumes:
+      - ${NOMAD_DATA:-/srv/nomad}:/srv
+
+  # ---- Offline maps (Protomaps) ----
+  # No separate service: the Command Center serves the viewer at /maps/ and the
+  # .pmtiles files (with Range support) from /maps-data/.
+
+  # ---- Education (Kolibri / Khan Academy) ----
+  # Intentionally disabled until a maintained arm64 image is picked (verify).
+  # kolibri:
+  #   <<: *defaults
+  #   image: <TBD>
+  #   ports: ["8085:8080"]
+  #   volumes: ["${NOMAD_DATA:-/srv/nomad}/kolibri:/root/.kolibri"]
+
+networks:
+  nomad:

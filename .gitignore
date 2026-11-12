@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.pyc
+
+# Local test data and downloaded content (never commit books, ZIMs or maps)
+testdata/
+*.zim
+*.zim.part
+*.pmtiles
+*.epub
+*.pdf
+
+# Local settings
+.env

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Map regions - Pi-NOMAD</title><link rel="stylesheet" href="/style.css"></head>
+<body>
+<nav><a class="brand" href="/">PI-<b>NOMAD</b></a><a href="/">Dashboard</a><a href="/books/">Bookshelf</a><a href="/zim.html">Content</a><a class="cur" href="/maps/manage.html">Map regions</a><a href="/maps/">Open map</a></nav>
+<div class="wrap">
+  <h1>Map regions</h1>
+  <p class="sub">Downloads a region from the Protomaps world map into a single file on this device. Needs internet once; the map then works fully offline.</p>
+
+  <h3>Add a region</h3>
+  <div class="panel">
+    <div class="row">
+      <select id="region"></select>
+      <select id="detail">
+        <option value="overview">Overview (cities and highways)</option>
+        <option value="standard" selected>Standard (streets)</option>
+        <option value="detailed">Detailed (buildings, trails)</option>
+      </select>
+    </div>
+    <div class="row" id="custom" style="display:none;margin-top:.6rem">
+      <input id="w" placeholder="west" size="8"><input id="s" placeholder="south" size="8">
+      <input id="e" placeholder="east" size="8"><input id="n" placeholder="north" size="8">
+      <span class="mut">Longitude/latitude in decimal degrees</span>
+    </div>
+    <div class="row" style="margin-top:.8rem">
+      <button id="est">Estimate size</button>
+      <button class="go" id="go">Download region</button>
+    </div>
+    <pre id="estOut"></pre>
+    <p class="mut">Higher detail is much larger. Run the estimate first and check it against the free space on the dashboard.</p>
+  </div>
+
+  <h3>Downloads</h3>
+  <div id="jobs"></div>
+
+  <h3>Installed maps</h3>
+  <div class="panel" id="installed"></div>
+</div>
+<script src="/shared.js"></script>
+<script>
+function target() {
+  const region = $("region").value;
+  const bbox = region === "custom" ? [$("w").value, $("s").value, $("e").value, $("n").value] : null;
+  return { region, bbox, detail: $("detail").value };
+}
+async function init() {
+  const r = await api("/api/maps/regions");
+  $("region").innerHTML = r.regions.map(x => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join("") + '<option value="custom">Custom area…</option>';
+  $("region").value = "michigan";
+  $("region").onchange = () => $("custom").style.display = $("region").value === "custom" ? "flex" : "none";
+}
+$("est").onclick = async () => {
+  $("estOut").textContent = "Checking… (can take a minute)";
+  try { const r = await api("/api/maps/estimate", target()); $("estOut").textContent = r.output || "(no output)"; }
+  catch (e) { $("estOut").textContent = e.message; }
+};
+$("go").onclick = async () => {
+  try { await api("/api/maps/extract", target()); $("estOut").textContent = ""; }
+  catch (e) { alert(e.message); }
+};
+async function loadInstalled() {
+  const list = await api("/api/maps/list");
+  $("installed").innerHTML = list.length ? `<table>${list.map(m => `<tr><td>${esc(m.name)}</td><td class="r">${fmt(m.size)}</td>
+    <td class="r"><a href="/maps/" style="color:var(--acc)">View</a> <button class="del" onclick="removeMap('${esc(m.name)}')">Delete</button></td></tr>`).join("")}</table>`
+    : '<span class="mut">No maps yet.</span>';
+}
+async function removeMap(name) {
+  if (!confirm("Delete " + name + " from this device?")) return;
+  try { await api("/api/maps/delete", { file: name }); } catch (e) { alert(e.message); }
+  loadInstalled();
+}
+init(); loadInstalled(); watchJobs("map", $("jobs"), loadInstalled);
+</script>
+</body></html>

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pi-NOMAD Command Center</title>
+<style>
+  :root { color-scheme: dark; --bg:#0b0f14; --panel:#131a22; --line:#243040; --txt:#e6edf3; --mut:#8b98a8; --acc:#4cc2ff; --ok:#3fb950; --bad:#f85149; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,sans-serif; background:var(--bg); color:var(--txt); }
+  header { display:flex; align-items:baseline; gap:1rem; padding:1.6rem 1.5rem .6rem; flex-wrap:wrap; }
+  header h1 { margin:0; font-size:1.5rem; letter-spacing:.12em; }
+  header h1 b { color:var(--acc); }
+  header p { margin:0; color:var(--mut); }
+  .wrap { max-width:1100px; margin:0 auto; padding:0 1.5rem 3rem; }
+  h3 { margin:1.8rem 0 .7rem; font-size:.8rem; letter-spacing:.15em; color:var(--mut); text-transform:uppercase; }
+  .tiles { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:1rem; }
+  a.tile { position:relative; display:block; padding:1.2rem; background:var(--panel); border:1px solid var(--line); border-radius:12px; color:inherit; text-decoration:none; min-height:120px; transition:border-color .15s, transform .15s; }
+  a.tile:hover { border-color:var(--acc); transform:translateY(-2px); }
+  a.tile.off { opacity:.55; }
+  .ico { font-size:1.8rem; }
+  .tile h2 { margin:.4rem 0 .2rem; font-size:1.1rem; }
+  .tile p { margin:0; color:var(--mut); font-size:.88rem; line-height:1.35; }
+  .dot { position:absolute; top:1rem; right:1rem; width:.7rem; height:.7rem; border-radius:50%; background:var(--mut); }
+  .dot.up { background:var(--ok); } .dot.down { background:var(--bad); }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:1.2rem; }
+  .bar { display:flex; height:16px; border-radius:8px; overflow:hidden; background:#1b2531; margin:.7rem 0; }
+  .bar i { display:block; height:100%; }
+  .legend { display:flex; flex-wrap:wrap; gap:.4rem 1.2rem; color:var(--mut); font-size:.85rem; }
+  .legend span::before { content:""; display:inline-block; width:.6rem; height:.6rem; border-radius:2px; background:var(--c); margin-right:.4rem; }
+  table { width:100%; border-collapse:collapse; font-size:.9rem; }
+  td { padding:.45rem 0; border-top:1px solid var(--line); } td:last-child { text-align:right; color:var(--mut); white-space:nowrap; }
+  .empty { color:var(--mut); font-size:.9rem; }
+  .big { font-size:1.3rem; font-weight:600; }
+</style>
+</head>
+<body>
+<header>
+  <h1>PI-<b>NOMAD</b></h1>
+  <p>Command Center &middot; knowledge that never goes offline</p>
+</header>
+<div class="wrap">
+  <h3>Apps</h3>
+  <div class="tiles" id="tiles"></div>
+
+  <h3>Storage</h3>
+  <div class="panel" id="storage"><span class="empty">Loading&hellip;</span></div>
+
+  <h3>Library content (ZIM files)</h3>
+  <div class="panel" id="zims"><span class="empty">Loading&hellip;</span></div>
+</div>
+
+<script>
+// Add or remove apps here. `svc` is the compose service name used for the status dot.
+const APPS = [
+  { svc:"kiwix",       ico:"📚", name:"Information Library", desc:"Offline Wikipedia, medical references and survival guides.", port:8080 },
+  { svc:"command-center", ico:"📖", name:"Bookshelf",       desc:"Read your own EPUB and PDF books.",                            href:"/books/" },
+  { svc:"command-center", ico:"🗺️", name:"Maps",            desc:"Offline Protomaps maps. Add regions in Map regions.",          href:"/maps/" },
+  { svc:"command-center", ico:"⬇️", name:"Content Manager", desc:"Download Wikipedia, medical and survival libraries.",           href:"/zim.html" },
+  { svc:"command-center", ico:"📍", name:"Map regions",     desc:"Download Michigan or any area for offline use.",                href:"/maps/manage.html" },
+  { svc:"flatnotes",   ico:"📝", name:"Notes",              desc:"Local markdown notes.",                                        port:8081 },
+  { svc:"cyberchef",   ico:"🧪", name:"Data Tools",         desc:"Encode, decode, hash and encrypt with CyberChef.",             port:8082 },
+  { svc:"filebrowser", ico:"📁", name:"Files",              desc:"Browse and upload to the data drive.",                         port:8083 },
+];
+const host = location.hostname;
+const GB = 1024 ** 3;
+const fmt = b => b >= GB ? (b / GB).toFixed(1) + " GB" : (b / 1048576).toFixed(0) + " MB";
+const COLORS = { zim:"#4cc2ff", maps:"#3fb950", notes:"#d29922", books:"#bc8cff", other:"#6e7681" };
+
+function renderTiles(services) {
+  const known = Object.keys(services).length > 0;
+  document.getElementById("tiles").innerHTML = APPS.map(a => {
+    const st = services[a.svc];
+    const cls = !known ? "" : (st === "running" ? "up" : "down");
+    const href = a.href || `http://${host}:${a.port}`;
+    return `<a class="tile ${known && st !== "running" ? "off" : ""}" href="${href}">
+      <span class="dot ${cls}" title="${known ? (st || "not installed") : "status unavailable"}"></span>
+      <div class="ico">${a.ico}</div><h2>${a.name}</h2><p>${a.desc}</p></a>`;
+  }).join("");
+}
+
+function renderStorage(s) {
+  const el = document.getElementById("storage");
+  if (!s) { el.innerHTML = '<span class="empty">Data drive not found.</span>'; return; }
+  const known = Object.values(s.folders).reduce((a, b) => a + b, 0);
+  const parts = Object.entries(s.folders).map(([k, v]) => [k, v]);
+  parts.push(["other", Math.max(0, s.used - known)]);
+  el.innerHTML = `<div><span class="big">${fmt(s.free)}</span> <span class="empty">free of ${fmt(s.total)}</span></div>
+    <div class="bar">${parts.map(([k, v]) => `<i style="width:${v / s.total * 100}%;background:${COLORS[k]}"></i>`).join("")}</div>
+    <div class="legend">${parts.map(([k, v]) => `<span style="--c:${COLORS[k]}">${k} ${fmt(v)}</span>`).join("")}</div>`;
+}
+
+function renderZims(list) {
+  const el = document.getElementById("zims");
+  el.innerHTML = list.length
+    ? `<table>${list.map(z => `<tr><td>${z.name}</td><td>${fmt(z.size)}</td></tr>`).join("")}</table>`
+    : '<span class="empty">No ZIM files yet. Open the <a href="/zim.html" style="color:var(--acc)">Content Manager</a> to download some.</span>';
+}
+
+async function refresh() {
+  try {
+    const d = await (await fetch("/api/status", { cache:"no-store" })).json();
+    renderTiles(d.services); renderStorage(d.storage); renderZims(d.zims);
+  } catch (e) { renderTiles({}); }
+}
+refresh(); setInterval(refresh, 10000);
+</script>
+</body>
+</html>

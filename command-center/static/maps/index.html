@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maps - Pi-NOMAD</title>
+<link rel="stylesheet" href="/maps/lib/maplibre-gl.css">
+<style>
+  html, body { margin:0; height:100%; background:#0b0f14; font-family:system-ui,sans-serif; color:#e6edf3; }
+  #bar { position:absolute; z-index:5; top:10px; left:10px; display:flex; gap:.5rem; align-items:center; background:#131a22ee; border:1px solid #243040; border-radius:10px; padding:.4rem .6rem; }
+  #bar a { color:#4cc2ff; text-decoration:none; font-size:.9rem; }
+  #bar select { font:inherit; color:inherit; background:#0f151c; border:1px solid #243040; border-radius:6px; padding:.25rem; }
+  #map { position:absolute; inset:0; }
+  #empty { position:absolute; inset:0; display:none; align-items:center; justify-content:center; text-align:center; padding:2rem; }
+  #empty a { color:#4cc2ff; }
+</style></head>
+<body>
+<div id="bar"><a href="/">&larr; PI-NOMAD</a><select id="file"></select><a href="/maps/manage.html">Manage regions</a></div>
+<div id="map"></div>
+<div id="empty"><div><h2>No offline maps yet</h2><p>Download a region (for example Michigan) while you have internet.</p>
+  <p><a href="/maps/manage.html">Open the map region manager</a></p></div></div>
+<script src="/maps/lib/maplibre-gl.js"></script>
+<script src="/maps/lib/pmtiles.js"></script>
+<script src="/maps/lib/basemaps.js"></script>
+<script>
+const protocol = new pmtiles.Protocol();
+maplibregl.addProtocol("pmtiles", protocol.tile);
+let map;
+
+async function show(file) {
+  const url = location.origin + "/maps-data/" + encodeURIComponent(file);
+  const p = new pmtiles.PMTiles(url);
+  protocol.add(p);
+  const h = await p.getHeader();
+  if (map) map.remove();
+  map = new maplibregl.Map({
+    container: "map",
+    // Fonts and icons are served from this device, so labels work with no internet.
+    style: {
+      version: 8,
+      glyphs: location.origin + "/maps/assets/fonts/{fontstack}/{range}.pbf",
+      sprite: location.origin + "/maps/assets/sprites/v4/light",
+      sources: { protomaps: { type: "vector", url: "pmtiles://" + url, maxzoom: h.maxZoom,
+                              attribution: '<a href="https://protomaps.com">Protomaps</a> © <a href="https://openstreetmap.org/copyright">OpenStreetMap</a>' } },
+      layers: basemaps.layers("protomaps", basemaps.namedFlavor("light"), { lang: "en" }),
+    },
+    bounds: [[h.minLon, h.minLat], [h.maxLon, h.maxLat]],
+    fitBoundsOptions: { animate: false },
+    maxBounds: [[h.minLon - 1, h.minLat - 1], [h.maxLon + 1, h.maxLat + 1]],
+  });
+  map.addControl(new maplibregl.NavigationControl(), "bottom-right");
+  map.addControl(new maplibregl.ScaleControl({ unit: "imperial" }), "bottom-left");
+  localStorageSafe("set", file);
+}
+
+function localStorageSafe(op, v) {   // remembering the last map is a nicety; never fail on it
+  try { return op === "set" ? localStorage.setItem("lastMap", v) : localStorage.getItem("lastMap"); } catch (e) { return null; }
+}
+
+(async () => {
+  const files = await (await fetch("/api/maps/list")).json();
+  if (!files.length) { document.getElementById("empty").style.display = "flex"; document.getElementById("map").style.display = "none"; return; }
+  const sel = document.getElementById("file");
+  sel.innerHTML = files.map(f => `<option>${f.name}</option>`).join("");
+  const last = localStorageSafe("get");
+  if (files.some(f => f.name === last)) sel.value = last;
+  sel.onchange = () => show(sel.value);
+  show(sel.value);
+})();
+</script>
+</body></html>

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Content Manager - Pi-NOMAD</title><link rel="stylesheet" href="/style.css"></head>
+<body>
+<nav><a class="brand" href="/">PI-<b>NOMAD</b></a><a href="/">Dashboard</a><a href="/books/">Bookshelf</a><a class="cur" href="/zim.html">Content</a><a href="/maps/manage.html">Map regions</a></nav>
+<div class="wrap">
+  <h1>Content Manager</h1>
+  <p class="sub">Download offline libraries from the Kiwix catalog. This needs an internet connection; everything you download works offline afterwards.</p>
+
+  <h3>Collections</h3>
+  <div class="grid" id="presets"></div>
+  <div id="presetPreview"></div>
+
+  <h3>Search the catalog</h3>
+  <div class="row">
+    <input id="q" placeholder="e.g. medicine, ifixit, gutenberg" size="32">
+    <select id="lang"><option value="eng">English</option><option value="spa">Spanish</option><option value="fra">French</option><option value="deu">German</option><option value="">Any language</option></select>
+    <button class="go" id="searchBtn">Search</button>
+  </div>
+  <div id="results" style="margin-top:1rem"></div>
+
+  <h3>Downloads</h3>
+  <div id="jobs"></div>
+
+  <h3>Installed</h3>
+  <div class="panel">
+    <div id="installed"></div>
+    <div class="row" style="margin-top:.8rem"><button id="rescan">Rescan folder</button>
+      <span class="mut" id="rescanMsg">Use this after copying .zim files in by hand.</span></div>
+  </div>
+</div>
+<script src="/shared.js"></script>
+<script>
+let results = [], previewEntries = [];
+
+async function loadPresets() {
+  const list = await api("/api/zim/presets");
+  $("presets").innerHTML = list.map(p => `<div class="card"><h2>${esc(p.title)}</h2><p>${esc(p.desc)}</p>
+    <button onclick="previewPreset('${esc(p.id)}', this)">Preview</button></div>`).join("");
+}
+
+async function previewPreset(id, btn) {
+  btn.disabled = true; btn.textContent = "Looking up…";
+  try {
+    const r = await api("/api/zim/preset?id=" + encodeURIComponent(id));
+    previewEntries = r.entries;
+    const total = r.entries.reduce((a, e) => a + e.size, 0);
+    $("presetPreview").innerHTML = `<div class="panel"><b>${esc(r.preset)}</b>
+      <table>${r.entries.map(e => `<tr><td>${esc(e.title)} <span class="mut">${esc(e.date)}</span></td><td class="r">${fmt(e.size)}</td></tr>`).join("")}</table>
+      ${r.missing.length ? `<p class="mut">Not found in the catalog: ${r.missing.map(esc).join(", ")}</p>` : ""}
+      ${r.entries.length ? `<div class="row"><button class="go" onclick="downloadPreview()">Download all (${fmt(total)})</button></div>` : ""}</div>`;
+  } catch (e) { $("presetPreview").innerHTML = `<div class="panel err">${esc(e.message)}. Are you online?</div>`; }
+  btn.disabled = false; btn.textContent = "Preview";
+}
+async function downloadPreview() { for (const e of previewEntries) await queue(e); $("presetPreview").innerHTML = ""; }
+
+async function queue(e) {
+  try { await api("/api/zim/download", { url: e.url, meta: e }); }
+  catch (err) { alert(e.title + ": " + err.message); }
+}
+
+async function search() {
+  $("results").innerHTML = '<span class="mut">Searching…</span>';
+  try {
+    results = await api("/api/zim/search?q=" + encodeURIComponent($("q").value) + "&lang=" + $("lang").value);
+    $("results").innerHTML = results.length ? `<div class="panel"><table>${results.map((e, i) => `<tr>
+      <td><b>${esc(e.title)}</b> <span class="mut">${esc(e.date)}</span><br><span class="mut">${esc(e.description)}</span></td>
+      <td class="r">${fmt(e.size)}<br><button onclick="queue(results[${i}])">Download</button></td></tr>`).join("")}</table></div>`
+      : '<span class="mut">No matches.</span>';
+  } catch (e) { $("results").innerHTML = `<div class="panel err">${esc(e.message)}. Are you online?</div>`; }
+}
+
+async function loadInstalled() {
+  const d = await api("/api/status");
+  $("installed").innerHTML = d.zims.length ? `<table>${d.zims.map(z => `<tr><td>${esc(z.name)}</td><td class="r">${fmt(z.size)}</td>
+    <td class="r"><button class="del" onclick="removeZim('${esc(z.name)}')">Delete</button></td></tr>`).join("")}</table>`
+    : '<span class="mut">Nothing installed yet.</span>';
+}
+async function removeZim(name) {
+  if (!confirm("Delete " + name + " from this device?")) return;
+  try { await api("/api/zim/delete", { file: name }); } catch (e) { alert(e.message); }
+  loadInstalled();
+}
+
+$("searchBtn").onclick = search;
+$("q").onkeydown = e => { if (e.key === "Enter") search(); };
+$("rescan").onclick = async () => { const r = await api("/api/zim/rescan", {}); $("rescanMsg").textContent = `Added ${r.added} new file(s).`; loadInstalled(); };
+loadPresets(); loadInstalled(); watchJobs("zim", $("jobs"), loadInstalled);
+</script>
+</body></html>
