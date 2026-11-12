@@ -14,6 +14,7 @@ An offline-first knowledge server for a Raspberry Pi 5, modeled on [Project NOMA
 | Content downloads (ZIM manager) | `/zim.html`: collections, catalog search, resumable downloads, delete | Built; see "Still not tested" |
 | Education (Kolibri) | commented out in compose | Need arm64 image |
 | Your own books (not in NOMAD) | Bookshelf at `/books/`: lists EPUB and PDF files from `/srv/nomad/books`, built-in EPUB reader | Built and browser-tested with generated books; not yet tried with real ones |
+| System info | System panel on the dashboard: temperature, fan, processor, memory, uptime, drive writes, clock check, power and heat warnings | Built; tested with simulated Pi readings, not on a real Pi |
 | Command Center (dashboard) | `command-center` (Python, no deps) | Done: tiles, live status, storage, content and map managers. Start/stop buttons are next |
 | Setup wizard + content collections | `install.sh` + Content Manager collections | Collections done; no first-run wizard yet |
 | Auto updates | none | Phase 3 (Watchtower or cron) |
@@ -54,7 +55,7 @@ To add books: `sudo cp -r /path/to/books/* /srv/nomad/books/` on the Pi, or uplo
 
 ## What has been verified (2026-11-08)
 
-Unit tests (`cd command-center && python3 tests/test_backend.py`, 20 tests) cover resuming a dropped download, path-traversal checks, Range requests and library writing. The map viewer was loaded in real Chrome against a generated test map. The live services were then checked from a real browser:
+Unit tests (`cd command-center && python3 tests/test_backend.py`, 25 tests) cover resuming a dropped download, path-traversal checks, Range requests and library writing. The map viewer was loaded in real Chrome against a generated test map. The live services were then checked from a real browser:
 
 - **Kiwix catalog:** the real feed format is parsed (the parser test uses an entry copied from the live catalog). The catalog moved to `opds.library.kiwix.org`, and download links use `lb.download.kiwix.org`; both are handled. Kiwix publishes variants (nopic, mini, maxi) under one name, so presets pick a flavour. All 7 collections resolve against the live catalog with the sizes shown in their descriptions.
 - **library.xml:** the attributes written match what libkiwix 14.2.1 (used by kiwix-tools 3.8.2) reads. The next libkiwix, currently unreleased, switches this file to a different format, so the compose file pins `kiwix-serve:3.8.2`. Don't change that tag without re-checking.

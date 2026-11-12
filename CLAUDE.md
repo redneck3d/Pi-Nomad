@@ -10,9 +10,10 @@ Owner: Mike, who runs a 3D printing and printer repair business in Wayne, Michig
 - `command-center/`: Python **stdlib-only** web app on port 80.
   - `app.py` router and Range-capable `/maps-data/` file server; `zim.py` Kiwix catalog search, resumable downloads, `library.xml` writer; `maps.py` Protomaps region extracts via the `pmtiles` CLI; `jobs.py` background job registry.
   - `books.py` bookshelf: lists EPUB/PDF under `/data/books` (read-only mount), serves EPUB chapters straight out of the zip at `/books-read/<book>.epub/<member>` with a no-scripts CSP, PDFs at `/books-data/`. Pages: `static/books/index.html`, `static/books/read.html`. Tested with generated EPUB 2/3 files only, not real books yet.
+  - `system.py` system panel (`/api/system`): reads `/proc` and `/sys` directly (host values are visible inside Docker). Pi paths used: `thermal_zone*/temp`, `cooling_fan/hwmon/*/fan1_input`, firmware `get_throttled`, `rpi_volt` hwmon. Those sysfs paths were written from memory and tested only against a fake tree (`PROC_DIR`/`SYS_DIR` env vars), so confirm them on the real Pi 5.
   - `static/`: dashboard (`index.html`), Content Manager (`zim.html`), map viewer (`maps/index.html`), map region manager (`maps/manage.html`).
   - `Dockerfile`: 3 stages: Go builds `pmtiles`; Node fetches maplibre-gl@5, pmtiles@4, @protomaps/basemaps@5 plus Protomaps fonts/sprites from GitHub; Python runs the app.
-  - `tests/test_backend.py`: 20 unit tests. Run: `cd command-center && python3 tests/test_backend.py`
+  - `tests/test_backend.py`: 25 unit tests. Run: `cd command-center && python3 tests/test_backend.py`
 - `install.sh` (Docker + data dirs + `docker compose up -d --build`), `hotspot.sh` (Wi-Fi AP via NetworkManager).
 - Data lives in `/srv/nomad/{zim,maps,notes,books}`. Command-center mounts `zim` and `maps` writable, the rest read-only.
 

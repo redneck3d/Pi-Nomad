@@ -16,6 +16,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import books
 import jobs
 import maps
+import system
 import zim
 
 DATA = os.environ.get("NOMAD_DATA", "/data")
@@ -226,6 +227,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self._cover(q.get("file", ""))
         if p == "/api/status":
             return self._json({"services": service_states(), "storage": storage(), "zims": zim.list_zims()})
+        if p == "/api/system":
+            return self._guard(system.snapshot)
         if p == "/api/jobs":
             return self._json(jobs.snapshot())
         if p == "/api/zim/search":

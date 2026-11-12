@@ -32,6 +32,15 @@
   td { padding:.45rem 0; border-top:1px solid var(--line); } td:last-child { text-align:right; color:var(--mut); white-space:nowrap; }
   .empty { color:var(--mut); font-size:.9rem; }
   .big { font-size:1.3rem; font-weight:600; }
+  .stats { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:1rem; }
+  .stat { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:.9rem 1rem; }
+  .stat small { display:block; color:var(--mut); font-size:.75rem; letter-spacing:.08em; text-transform:uppercase; }
+  .stat b { display:block; font-size:1.35rem; margin:.15rem 0; }
+  .stat span { color:var(--mut); font-size:.8rem; }
+  .meter { height:6px; border-radius:3px; background:#1b2531; overflow:hidden; margin:.35rem 0 .3rem; }
+  .meter i { display:block; height:100%; background:var(--acc); transition:width .4s; }
+  .meter i.warm { background:#d29922; } .meter i.hot { background:var(--bad); }
+  .warnbox { border:1px solid #d29922; background:#2a2110; color:#f0c674; border-radius:10px; padding:.6rem .9rem; margin-bottom:.6rem; font-size:.9rem; }
 </style>
 </head>
 <body>
@@ -42,6 +51,10 @@
 <div class="wrap">
   <h3>Apps</h3>
   <div class="tiles" id="tiles"></div>
+
+  <h3>System</h3>
+  <div id="warn"></div>
+  <div class="stats" id="system"><span class="empty">Loading&hellip;</span></div>
 
   <h3>Storage</h3>
   <div class="panel" id="storage"><span class="empty">Loading&hellip;</span></div>
@@ -96,6 +109,38 @@ function renderZims(list) {
     ? `<table>${list.map(z => `<tr><td>${z.name}</td><td>${fmt(z.size)}</td></tr>`).join("")}</table>`
     : '<span class="empty">No ZIM files yet. Open the <a href="/zim.html" style="color:var(--acc)">Content Manager</a> to download some.</span>';
 }
+
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+function upfmt(s) {
+  const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
+  return d ? `${d}d ${h}h` : h ? `${h}h ${m}m` : `${m}m`;
+}
+function stat(label, value, note, pct, cls) {
+  return `<div class="stat"><small>${label}</small><b>${value}</b>${pct == null ? "" :
+    `<div class="meter"><i class="${cls || ""}" style="width:${Math.max(0, Math.min(100, pct))}%"></i></div>`}<span>${note || ""}</span></div>`;
+}
+function renderSystem(s) {
+  const lvl = p => p >= 90 ? "hot" : p >= 75 ? "warm" : "";
+  const cards = [];
+  if (s.temp_c != null) cards.push(stat("Temperature", s.temp_c.toFixed(0) + " \u00b0C",
+    s.fan_rpm != null ? "Fan " + s.fan_rpm + " rpm" : "", s.temp_c / 85 * 100, s.temp_c >= 80 ? "hot" : s.temp_c >= 70 ? "warm" : ""));
+  if (s.cpu.percent != null) cards.push(stat("Processor", s.cpu.percent.toFixed(0) + "%",
+    (s.cpu.cores ? s.cpu.cores + " cores" : "") + (s.cpu.load ? " \u00b7 load " + s.cpu.load[0].toFixed(2) : ""), s.cpu.percent, lvl(s.cpu.percent)));
+  if (s.memory) cards.push(stat("Memory", s.memory.used_percent.toFixed(0) + "%",
+    fmt(s.memory.available) + " free of " + fmt(s.memory.total), s.memory.used_percent, lvl(s.memory.used_percent)));
+  if (s.uptime_s != null) cards.push(stat("Running for", upfmt(s.uptime_s), ""));
+  if (s.disk) cards.push(stat("Written to drive", fmt(s.disk.written), "since startup \u00b7 " + esc(s.disk.device)));
+  const off = Math.round((Date.now() / 1000 - s.time) / 60);
+  cards.push(stat("Deck clock", new Date(s.time * 1000).toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" }),
+    Math.abs(off) >= 2 ? `${Math.abs(off)} min ${off > 0 ? "behind" : "ahead of"} this device` : "matches this device"));
+  document.getElementById("system").innerHTML = cards.join("");
+  document.getElementById("warn").innerHTML = s.warnings.map(w => `<div class="warnbox">\u26a0 ${esc(w)}</div>`).join("");
+}
+async function refreshSystem() {
+  try { renderSystem(await (await fetch("/api/system", { cache:"no-store" })).json()); }
+  catch (e) { document.getElementById("system").innerHTML = '<span class="empty">System readings unavailable.</span>'; }
+}
+refreshSystem(); setInterval(refreshSystem, 5000);
 
 async function refresh() {
   try {

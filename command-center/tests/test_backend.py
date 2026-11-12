@@ -20,7 +20,7 @@ os.makedirs(os.environ["ZIM_DIR"]); os.makedirs(os.environ["MAPS_DIR"]); os.make
 
 import zipfile  # noqa: E402
 
-import app, books, jobs, maps, zim  # noqa: E402
+import app, books, jobs, maps, system, zim  # noqa: E402
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
 CH = '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>{0}</title></head><body><h1>{0}</h1><p>Text of {0}.</p>{1}</body></html>'
@@ -428,6 +428,84 @@ class BooksTests(unittest.TestCase):
         for bad in ["/books-data/../secret.pdf", "/books-data/%2e%2e/secret.pdf", "/books-data/notes.txt",
                     "/books-data/Covers/Preppers%20Hacks%20-%20Gear%20Gadgets%20%20Kits.jpg", "/books-data/missing.pdf"]:
             self.assertEqual(self.get(bad).code, 404, bad)
+
+
+class SystemTests(unittest.TestCase):
+    """Readings come from a fake /proc and /sys tree shaped like a Raspberry Pi 5."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(dir=TMP)
+        self.proc, self.sys = os.path.join(self.root, "proc"), os.path.join(self.root, "sys")
+        self.put("proc/stat", "cpu  100 0 100 700 100 0 0 0 0 0\ncpu0 1 1 1 1 1 1 1 1 1 1\n")
+        self.put("proc/meminfo", "MemTotal:        4000000 kB\nMemFree:          100000 kB\n"
+                                 "MemAvailable:    1000000 kB\nSwapTotal:        200000 kB\nSwapFree:         150000 kB\n")
+        self.put("proc/loadavg", "0.52 0.40 0.31 1/234 5678\n")
+        self.put("proc/uptime", "93784.21 370000.00\n")
+        self.put("proc/diskstats", " 179       0 mmcblk0 5000 10 400000 900 3000 20 2000000 800 0 100 1700\n"
+                                   " 179       2 mmcblk0p2 4000 10 300000 800 2900 20 1900000 700 0 90 1500\n")
+        self.put("sys/class/thermal/thermal_zone0/temp", "48350\n")
+        self.put("sys/devices/platform/cooling_fan/hwmon/hwmon2/fan1_input", "2950\n")
+        self.put("sys/devices/platform/soc/soc:firmware/get_throttled", "0\n")
+        self.put("sys/devices/mmc/mmcblk0/mmcblk0p2/partition", "2\n")
+        os.makedirs(os.path.join(self.sys, "dev/block"))
+        os.symlink(os.path.join(self.sys, "devices/mmc/mmcblk0/mmcblk0p2"), os.path.join(self.sys, "dev/block/179:2"))
+        self.saved = (system.PROC, system.SYS, system._dev_numbers, system._prev_cpu)
+        system.PROC, system.SYS, system._prev_cpu = self.proc, self.sys, None
+        system._dev_numbers = lambda path: (179, 2)
+
+    def tearDown(self):
+        system.PROC, system.SYS, system._dev_numbers, system._prev_cpu = self.saved
+
+    def put(self, rel, text):
+        p = os.path.join(self.root, rel)
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        open(p, "w").write(text)
+
+    def test_healthy_pi(self):
+        system._prev_cpu = (700, 900)     # earlier sample: idle+iowait 700 of 900
+        s = system.snapshot()
+        # since then: 100 new ticks, all 100 of them idle
+        self.assertEqual(s["cpu"]["percent"], 0.0)
+        self.assertEqual(s["cpu"]["load"], [0.52, 0.40, 0.31])
+        self.assertEqual(s["memory"]["total"], 4000000 * 1024)
+        self.assertEqual(s["memory"]["used_percent"], 75.0)          # uses MemAvailable, not MemFree
+        self.assertEqual(s["memory"]["swap_used"], 50000 * 1024)
+        self.assertEqual((s["temp_c"], s["fan_rpm"], s["uptime_s"]), (48.4, 2950, 93784))
+        self.assertEqual(s["disk"], {"device": "mmcblk0", "read": 400000 * 512, "written": 2000000 * 512})
+        self.assertEqual((s["power"], s["warnings"]), ([], []))
+
+    def test_cpu_percent_between_calls(self):
+        system._prev_cpu = (400, 500)     # now idle 800 of 1000: 400 of the 500 new ticks were idle
+        self.assertEqual(system.cpu_percent(), 20.0)
+        self.assertEqual(system._prev_cpu, (800, 1000))
+
+    def test_warnings(self):
+        self.put("sys/class/thermal/thermal_zone0/temp", "81200\n")
+        self.put("sys/devices/platform/soc/soc:firmware/get_throttled", "0x50005\n")   # bits 0, 2, 16, 18
+        self.put("proc/meminfo", "MemTotal: 4000000 kB\nMemAvailable: 200000 kB\n")
+        s = system.snapshot()
+        self.assertEqual(s["power"], ["throttled", "throttled_past", "undervoltage", "undervoltage_past"])
+        text = " | ".join(s["warnings"])
+        for word in ("voltage is too low right now", "slowed down", "Running hot (81", "Memory is nearly full"):
+            self.assertIn(word, text)
+        self.put("sys/class/thermal/thermal_zone0/temp", "72000\n")
+        self.put("sys/devices/platform/soc/soc:firmware/get_throttled", "0x10000\n")   # only "happened earlier"
+        w = " | ".join(system.snapshot()["warnings"])
+        self.assertIn("Running warm (72", w)
+        self.assertIn("at some point since startup", w)
+        self.assertNotIn("right now", w)
+
+    def test_undervoltage_from_hwmon_driver(self):
+        self.put("sys/class/hwmon/hwmon1/name", "rpi_volt\n")
+        self.put("sys/class/hwmon/hwmon1/in0_lcrit_alarm", "1\n")
+        self.assertIn("undervoltage", system.power_flags())
+
+    def test_machine_without_pi_sensors(self):
+        system.PROC = system.SYS = os.path.join(self.root, "nothing-here")
+        system._dev_numbers = lambda path: (0, 55)
+        s = system.snapshot()
+        self.assertEqual((s["temp_c"], s["fan_rpm"], s["memory"], s["disk"], s["uptime_s"]), (None, None, None, None, None))
+        self.assertEqual((s["cpu"]["percent"], s["cpu"]["load"], s["warnings"]), (None, None, []))
 
 
 if __name__ == "__main__":
