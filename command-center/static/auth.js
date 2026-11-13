@@ -13,17 +13,15 @@ const Admin = {
   css() {
     if (document.getElementById("adm-css")) return;
     const st = document.createElement("style"); st.id = "adm-css";
-    st.textContent = `.adm-back{position:fixed;inset:0;background:#000a;display:flex;align-items:center;justify-content:center;z-index:50;padding:1rem}
-      .adm-box{background:#131a22;border:1px solid #243040;border-radius:12px;padding:1.2rem;width:100%;max-width:21rem;color:#e6edf3;font-family:system-ui,sans-serif}
-      .adm-box h4{margin:0 0 .3rem;font-size:1.05rem}.adm-box p{margin:0 0 .8rem;color:#8b98a8;font-size:.88rem}
-      .adm-box label{display:block;font-size:.8rem;color:#8b98a8;margin:.5rem 0 .2rem}
-      .adm-box input{width:100%;box-sizing:border-box;font:inherit;color:#e6edf3;background:#0f151c;border:1px solid #243040;border-radius:8px;padding:.55rem .7rem}
-      .adm-err{color:#f85149;font-size:.85rem;min-height:1.2em;margin-top:.5rem}
+    st.textContent = `.adm-back{position:fixed;inset:0;background:#070b13cc;display:flex;align-items:center;justify-content:center;z-index:50;padding:1rem}
+      .adm-box{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:1.3rem;width:100%;max-width:22rem;color:var(--txt)}
+      .adm-box h4{margin:0 0 .3rem;font-family:var(--display);font-size:1.2rem;font-weight:600}.adm-box p{margin:0 0 .8rem;color:var(--mut);font-size:.92rem}
+      .adm-box label{display:block;font-size:.84rem;color:var(--mut);margin:.6rem 0 .25rem}
+      .adm-box input{width:100%}
+      .adm-err{color:var(--bad);font-size:.88rem;min-height:1.2em;margin-top:.5rem}
       .adm-row{display:flex;gap:.5rem;justify-content:flex-end;margin-top:.6rem;flex-wrap:wrap}
-      .adm-btn{font:inherit;font-size:.9rem;color:#e6edf3;background:#17222e;border:1px solid #243040;border-radius:8px;padding:.45rem .8rem;cursor:pointer}
-      .adm-btn:hover{border-color:#4cc2ff}.adm-btn.go{background:#4cc2ff;color:#04121d;border-color:#4cc2ff;font-weight:600}
-      .adm-strip{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;border:1px solid #243040;background:#131a22;border-radius:12px;padding:.8rem 1rem;font-size:.9rem}
-      .adm-strip.open{border-color:#d29922;background:#2a2110;color:#f0c674}.adm-strip span{flex:1 1 14rem}`;
+      .adm-strip{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;border:1px solid var(--line);background:var(--panel);border-radius:var(--r);padding:.7rem 1rem;margin-top:1.4rem;color:var(--mut);font-size:.94rem}
+      .adm-strip.open{border-color:var(--amber);background:rgba(234,166,64,.1);color:var(--amber)}.adm-strip span{flex:1 1 14rem}`;
     document.head.appendChild(st);
   },
 
@@ -35,7 +33,7 @@ const Admin = {
       const back = document.createElement("div"); back.className = "adm-back";
       back.innerHTML = `<form class="adm-box"><h4></h4><p></p><div class="adm-fields"></div>
         <div class="adm-err" role="alert"></div><div class="adm-row">
-        <button type="button" class="adm-btn" data-x>Cancel</button><button class="adm-btn go">OK</button></div></form>`;
+        <button type="button" data-x>Cancel</button><button class="go">OK</button></div></form>`;
       back.querySelector("h4").textContent = title; back.querySelector("p").textContent = text;
       const inputs = fields.map(f => {
         const l = document.createElement("label"); l.textContent = f.label;
@@ -70,7 +68,7 @@ const Admin = {
     this.css();
     let s;
     try { s = await this.status(); } catch (e) { el.textContent = ""; return; }
-    const btn = (label, fn, go) => { const b = document.createElement("button"); b.className = "adm-btn" + (go ? " go" : "");
+    const btn = (label, fn, go) => { const b = document.createElement("button"); if (go) b.className = "go";
       b.textContent = label; b.onclick = async () => { try { await fn(); } catch (e) { alert(e.message); } this.mount(el); }; return b; };
     const strip = document.createElement("div"); const text = document.createElement("span"); strip.append(text);
     if (!s.pin_set) {

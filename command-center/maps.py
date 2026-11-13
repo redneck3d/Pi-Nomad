@@ -101,9 +101,9 @@ def _extract(job, stem, bbox, maxzoom):
                 job.done, job.total = int(m.group(1)), 100
             job.message = chunk[-1][:120]
     code = job.proc.wait()
+    if (job.cancel.is_set() or code != 0) and os.path.exists(part):
+        os.remove(part)
     if job.cancel.is_set():
-        if os.path.exists(part):
-            os.remove(part)
         return
     if code != 0:
         raise RuntimeError("pmtiles failed: " + " | ".join(tail[-2:]))

@@ -1,20 +1,26 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Maps - Pi-NOMAD</title>
+<title>Maps - Pi-Nomad</title>
+<meta name="theme-color" content="#141c2d">
+<link rel="icon" type="image/png" href="/img/favicon.png"><link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+<link rel="stylesheet" href="/style.css">
 <link rel="stylesheet" href="/maps/lib/maplibre-gl.css">
 <style>
-  html, body { margin:0; height:100%; background:#0b0f14; font-family:system-ui,sans-serif; color:#e6edf3; }
-  #bar { position:absolute; z-index:5; top:10px; left:10px; display:flex; gap:.5rem; align-items:center; background:#131a22ee; border:1px solid #243040; border-radius:10px; padding:.4rem .6rem; }
-  #bar a { color:#4cc2ff; text-decoration:none; font-size:.9rem; }
-  #bar select { font:inherit; color:inherit; background:#0f151c; border:1px solid #243040; border-radius:6px; padding:.25rem; }
+  html, body { height:100%; }
+  #bar { position:absolute; z-index:5; top:10px; left:10px; max-width:calc(100vw - 20px); display:flex; flex-wrap:wrap; gap:.4rem .75rem; align-items:center; background:rgba(20,28,45,.94); border:1px solid var(--line); border-radius:12px; padding:.4rem .7rem .4rem .5rem; }
+  #bar a { text-decoration:none; font-size:.94rem; }
+  #bar a.home { display:flex; align-items:center; gap:.4rem; font-family:var(--display); font-size:1.08rem; font-weight:700; color:var(--teal); }
+  #bar a.home b { color:var(--amber); font-weight:700; }
+  #bar a.home img { width:38px; height:auto; }
+  #bar select { min-height:38px; padding:.25rem .5rem; flex:0 1 auto; min-width:0; }
   #map { position:absolute; inset:0; }
   #empty { position:absolute; inset:0; display:none; align-items:center; justify-content:center; text-align:center; padding:2rem; }
-  #empty a { color:#4cc2ff; }
+  #empty h2 { font-size:1.6rem; margin:0 0 .4rem; }
 </style></head>
 <body>
-<div id="bar"><a href="/">&larr; PI-NOMAD</a><select id="file"></select><a href="/maps/manage.html">Manage regions</a></div>
+<div id="bar"><a class="home" href="/" title="Back to the dashboard"><img src="/img/mark.png" alt="" width="192" height="145"><span>Pi-<b>Nomad</b></span></a><select id="file" aria-label="Map region"></select><a href="/maps/manage.html">Manage regions</a></div>
 <div id="map"></div>
-<div id="empty"><div><h2>No offline maps yet</h2><p>Download a region (for example Michigan) while you have internet.</p>
+<div id="empty"><div><h2>No offline maps yet</h2><p class="mut">Download a region (for example Michigan) while you have internet.</p>
   <p><a href="/maps/manage.html">Open the map region manager</a></p></div></div>
 <script src="/maps/lib/maplibre-gl.js"></script>
 <script src="/maps/lib/pmtiles.js"></script>
@@ -58,7 +64,7 @@ function localStorageSafe(op, v) {   // remembering the last map is a nicety; ne
   const files = await (await fetch("/api/maps/list")).json();
   if (!files.length) { document.getElementById("empty").style.display = "flex"; document.getElementById("map").style.display = "none"; return; }
   const sel = document.getElementById("file");
-  sel.innerHTML = files.map(f => `<option>${f.name}</option>`).join("");
+  sel.innerHTML = files.map(f => `<option value="${f.name}">${f.name.replace(/\.pmtiles$/, "")}</option>`).join("");
   const last = localStorageSafe("get");
   if (files.some(f => f.name === last)) sel.value = last;
   sel.onchange = () => show(sel.value);

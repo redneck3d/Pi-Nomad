@@ -1,4 +1,4 @@
-// Helpers shared by the manager pages.
+// Helpers shared by the dashboard and manager pages.
 const GB = 1024 ** 3;
 const fmt = b => b >= GB ? (b / GB).toFixed(1) + " GB" : (b / 1048576).toFixed(b >= 1048576 * 10 ? 0 : 1) + " MB";
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));

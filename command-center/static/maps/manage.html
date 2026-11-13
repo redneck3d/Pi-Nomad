@@ -1,11 +1,16 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Map regions - Pi-NOMAD</title><link rel="stylesheet" href="/style.css"></head>
+<title>Map regions - Pi-Nomad</title><meta name="theme-color" content="#141c2d">
+<link rel="icon" type="image/png" href="/img/favicon.png"><link rel="apple-touch-icon" href="/img/apple-touch-icon.png"><link rel="stylesheet" href="/style.css"></head>
 <body>
-<nav><a class="brand" href="/">PI-<b>NOMAD</b></a><a href="/">Dashboard</a><a href="/books/">Bookshelf</a><a href="/zim.html">Content</a><a class="cur" href="/maps/manage.html">Map regions</a><a href="/maps/">Open map</a></nav>
+<nav class="top"><a class="brand" href="/"><img src="/img/mark.png" alt="" width="192" height="145"><span>Pi-<b>Nomad</b></span></a>
+  <div class="links"><a href="/">Dashboard</a><a href="/books/">Bookshelf</a><a href="/zim.html">Content</a><a aria-current="page" href="/maps/manage.html">Map regions</a><a href="/maps/">Open map</a></div></nav>
+<hr class="bar-line">
 <div class="wrap">
-  <h1>Map regions</h1>
-  <p class="sub">Downloads a region from the Protomaps world map into a single file on this device. Needs internet once; the map then works fully offline.</p>
+  <div class="page-head">
+    <h1>Map regions</h1>
+    <p class="sub">Downloads a region from the Protomaps world map into a single file on this device. Needs internet once; the map then works fully offline.</p>
+  </div>
 
   <h3>Add a region</h3>
   <div class="panel">
@@ -62,7 +67,7 @@ $("go").onclick = async () => {
 async function loadInstalled() {
   const list = await api("/api/maps/list");
   $("installed").innerHTML = list.length ? `<table>${list.map(m => `<tr><td>${esc(m.name)}</td><td class="r">${fmt(m.size)}</td>
-    <td class="r"><a href="/maps/" style="color:var(--acc)">View</a> <button class="del" onclick="removeMap('${esc(m.name)}')">Delete</button></td></tr>`).join("")}</table>`
+    <td class="r"><a href="/maps/">View</a> <button class="del" onclick="removeMap('${esc(m.name)}')">Delete</button></td></tr>`).join("")}</table>`
     : '<span class="mut">No maps yet.</span>';
 }
 async function removeMap(name) {

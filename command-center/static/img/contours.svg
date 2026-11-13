@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1200 640" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <path id="a" d="M-60-34C-30-72 34-78 66-46c28 28 40 54 12 84-30 32-82 34-116 18C-78 38-92 6-60-34z"/>
+    <path id="b" d="M-74-10C-62-54-14-68 28-60c40 8 62 34 52 70-10 38-60 58-100 48C-62 48-84 26-74-10z"/>
+  </defs>
+  <g fill="none" stroke="#7fb5a6" stroke-opacity=".16" stroke-width="1" vector-effect="non-scaling-stroke">
+    <g transform="translate(1010 150)">
+      <use xlink:href="#a" href="#a" transform="scale(.5)" vector-effect="non-scaling-stroke"/>
+      <use xlink:href="#a" href="#a" transform="scale(1)" vector-effect="non-scaling-stroke"/>
+      <use xlink:href="#a" href="#a" transform="rotate(8) scale(1.6)" vector-effect="non-scaling-stroke"/>
+      <use xlink:href="#a" href="#a" transform="rotate(14) scale(2.3)" vector-effect="non-scaling-stroke"/>
+      <use xlink:href="#a" href="#a" transform="rotate(20) scale(3.1)" vector-effect="non-scaling-stroke"/>
+      <use xlink:href="#a" href="#a" transform="rotate(26) scale(4)" vector-effect="non-scaling-stroke"/>
+      <use xlink:href="#a" href="#a" transform="rotate(32) scale(5)" vector-effect="non-scaling-stroke"/>
+      <use xlink:href="#a" href="#a" transform="rotate(38) scale(6.2)" vector-effect="non-scaling-stroke"/>
+    </g>
+    <g transform="translate(150 560)">
+      <use xlink:href="#b" href="#b" transform="scale(.6)" vector-effect="non-scaling-stroke"/>
+      <use xlink:href="#b" href="#b" transform="rotate(-6) scale(1.2)" vector-effect="non-scaling-stroke"/>
+      <use xlink:href="#b" href="#b" transform="rotate(-12) scale(1.9)" vector-effect="non-scaling-stroke"/>
+      <use xlink:href="#b" href="#b" transform="rotate(-18) scale(2.7)" vector-effect="non-scaling-stroke"/>
+      <use xlink:href="#b" href="#b" transform="rotate(-24) scale(3.6)" vector-effect="non-scaling-stroke"/>
+      <use xlink:href="#b" href="#b" transform="rotate(-30) scale(4.6)" vector-effect="non-scaling-stroke"/>
+    </g>
+  </g>
+</svg>

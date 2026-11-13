@@ -182,6 +182,23 @@ class ZimTests(unittest.TestCase):
         self.assertEqual([e["name"] for e in r["entries"]], ["wikipedia_en_all", "zimgit-medicine_en"])
         self.assertEqual(r["missing"], ["wikipedia_en_all (mini)", "nope"])
 
+    def test_every_library_write_advances_whole_second_mtime(self):
+        root = ET.Element("library", version="20110515")
+        seen = []
+        for _ in range(4):                     # all inside one second, like a multi-file rescan
+            zim._write_library(root)
+            seen.append(int(os.path.getmtime(zim.LIBRARY)))
+        self.assertEqual(seen, sorted(set(seen)), seen)
+
+    def test_search_never_offers_full_gutenberg(self):
+        rows = [{"name": "gutenberg_en_all"}, {"name": "gutenberg_en_lcc-k"}]
+        orig = zim._catalog_get
+        zim._catalog_get = lambda **kw: rows
+        try:
+            self.assertEqual([e["name"] for e in zim.search("gutenberg")], ["gutenberg_en_lcc-k"])
+        finally:
+            zim._catalog_get = orig
+
     def test_every_preset_is_well_formed(self):
         for p in zim.PRESETS:
             self.assertTrue(p["items"], p["id"])
@@ -237,7 +254,43 @@ class FlakyServer(http.server.BaseHTTPRequestHandler):
             self.wfile.write(body)
 
 
+class EndlessServer(http.server.BaseHTTPRequestHandler):
+    """Keeps streaming until the client hangs up, so a download is reliably mid-flight."""
+    def log_message(self, *a): pass
+
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-Length", str(1 << 40))
+        self.end_headers()
+        try:
+            while True:
+                self.wfile.write(b"x" * (1 << 20))
+                time.sleep(0.01)
+        except OSError:
+            pass
+
+
 class DownloadTests(unittest.TestCase):
+    def test_cancel_removes_partial_file(self):
+        srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), EndlessServer)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        orig_safe = zim._safe_filename
+        zim._safe_filename = lambda u: "cancelme_2026-01.zim"
+        part = os.path.join(zim.ZIM_DIR, "cancelme_2026-01.zim.part")
+        try:
+            job = zim.start_download(f"http://127.0.0.1:{srv.server_port}/x.zim", {"title": "Cancel me"})
+            t = time.time()
+            while job.done < (1 << 20) and time.time() - t < 10:
+                time.sleep(0.02)
+            self.assertTrue(os.path.exists(part))
+            jobs.cancel(job.id)
+            wait(job)
+        finally:
+            zim._safe_filename = orig_safe
+            srv.shutdown()
+        self.assertEqual(job.state, "cancelled", job.message)
+        self.assertFalse(os.path.exists(part))
+
     def test_resume_after_dropped_connection(self):
         srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), FlakyServer)
         threading.Thread(target=srv.serve_forever, daemon=True).start()
@@ -295,12 +348,26 @@ class MapsTests(unittest.TestCase):
         maps.delete("detroit-overview.pmtiles")
 
     def test_failed_extract_reports_error(self):
-        maps.PMTILES_BIN = "false"
+        fake = os.path.join(TMP, "failpmtiles.sh")
+        with open(fake, "w") as f:
+            f.write('#!/bin/sh\nprintf PARTIAL > "$3"\necho "no route to host"\nexit 3\n')
+        os.chmod(fake, 0o755)
+        maps.PMTILES_BIN = fake
         maps.planet_url = lambda: "https://example.invalid/planet.pmtiles"
         job = maps.start_extract("ohio", None, "overview")
         wait(job)
         self.assertEqual(job.state, "error")
+        self.assertIn("no route to host", job.message)
+        self.assertIn("pmtiles failed", job.message)   # the error, not the last progress line
         self.assertFalse(os.path.exists(os.path.join(maps.MAPS_DIR, "ohio-overview.pmtiles.part")))
+
+    def test_build_lookup_failure_shows_real_error(self):
+        def boom():
+            raise RuntimeError("Could not find a recent Protomaps build")
+        maps.planet_url = boom
+        job = maps.start_extract("indiana", None, "overview")
+        wait(job)
+        self.assertEqual((job.state, job.message), ("error", "Could not find a recent Protomaps build"))
 
 
 class ServerTests(unittest.TestCase):

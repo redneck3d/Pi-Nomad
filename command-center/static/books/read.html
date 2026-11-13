@@ -1,14 +1,15 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Reader - Pi-NOMAD</title>
+<title>Reader - Pi-Nomad</title><meta name="theme-color" content="#141c2d">
+<link rel="icon" type="image/png" href="/img/favicon.png">
 <style>
-  :root { color-scheme: dark; --bg:#0b0f14; --panel:#131a22; --line:#243040; --txt:#e6edf3; --mut:#8b98a8; --acc:#4cc2ff; }
+  :root { color-scheme: dark; --bg:#141c2d; --panel:#1b2639; --line:#32435e; --txt:#f0efe6; --mut:#a9b4c3; --acc:#35ad9e; }
   html, body { margin:0; height:100%; background:var(--bg); color:var(--txt); font-family:system-ui,sans-serif; }
   body { display:flex; flex-direction:column; }
   #bar { display:flex; gap:.5rem; align-items:center; padding:.5rem .7rem; background:var(--panel); border-bottom:1px solid var(--line); flex-wrap:wrap; }
   #bar a { color:var(--acc); text-decoration:none; font-size:.9rem; white-space:nowrap; }
   #title { font-weight:600; font-size:.95rem; flex:1 1 8rem; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  select, button { font:inherit; font-size:.9rem; color:var(--txt); background:#0f151c; border:1px solid var(--line); border-radius:8px; padding:.4rem .6rem; }
+  select, button { font:inherit; font-size:.9rem; color:var(--txt); background:#0f1624; border:1px solid var(--line); border-radius:10px; padding:.4rem .7rem; min-height:40px; }
   select { max-width:16rem; flex:1 1 8rem; min-width:0; }
   button { cursor:pointer; } button:hover { border-color:var(--acc); } button:disabled { opacity:.4; cursor:default; }
   iframe { flex:1; width:100%; border:0; background:#fff; }
@@ -32,7 +33,7 @@ const $ = id => document.getElementById(id);
 const enc = p => p.split("/").map(encodeURIComponent).join("/");
 const book = new URLSearchParams(location.search).get("book") || "";
 const base = "/books-read/" + enc(book) + "/";
-const THEMES = { light:["#ffffff","#1b1f24","#0b5cad"], sepia:["#f4ecd8","#3b2f20","#7a4b12"], dark:["#0f1318","#d6dde6","#4cc2ff"] };
+const THEMES = { light:["#ffffff","#1b1f24","#0b5cad"], sepia:["#f4ecd8","#3b2f20","#7a4b12"], dark:["#141c2d","#e4e6e0","#35ad9e"] };
 const store = { get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } },
                 set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } };
 let spine = [], idx = 0, size = store.get("reader.size", 110), theme = store.get("reader.theme", "dark");
@@ -78,7 +79,7 @@ $("theme").onclick = () => { const k = Object.keys(THEMES); theme = k[(k.indexOf
   try {
     const r = await fetch("/api/books/info?file=" + encodeURIComponent(book));
     const d = await r.json(); if (!r.ok || d.error) throw new Error(d.error || r.statusText);
-    spine = d.spine; document.title = d.title + " - Pi-NOMAD"; $("title").textContent = d.title;
+    spine = d.spine; document.title = d.title + " - Pi-Nomad"; $("title").textContent = d.title;
     $("chap").replaceChildren(...spine.map((s, i) => new Option(s.title || "Section " + (i + 1), i)));
     go(store.get("reader.pos." + book, 0));
   } catch (e) {

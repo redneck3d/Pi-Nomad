@@ -56,14 +56,18 @@ services:
   # ---- Data tools: encode/decode/hash/crypto ----
   cyberchef:
     <<: *defaults
-    image: ghcr.io/gchq/cyberchef:latest   # (verify arm64)
-    ports: ["8082:8000"]
+    image: ghcr.io/gchq/cyberchef:latest   # ships arm64; nginx inside listens on 8080
+    ports: ["8082:8080"]
 
   # ---- File manager for the data drive (ZIMs, PDFs, maps) ----
-  filebrowser:
+  files:
     <<: *defaults
-    image: filebrowser/filebrowser:latest
-    ports: ["8083:80"]
+    # Dufs: one small binary, no database, no login (like the rest of the stack).
+    # Runs as root, which it needs because /srv/nomad and all downloads are root-owned.
+    image: sigoden/dufs:v0.47.0
+    # --hidden only trims the listing: the app's own bookkeeping files stay out of the way.
+    command: ["--allow-all", "--hidden", "library.xml,library.xml.tmp,*.part,.flatnotes", "/srv"]
+    ports: ["8083:5000"]
     volumes:
       - ${NOMAD_DATA:-/srv/nomad}:/srv
 

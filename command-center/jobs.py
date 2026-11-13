@@ -45,7 +45,7 @@ def start(kind, title, fn):
                     job.state = "cancelled" if job.cancel.is_set() else "done"
             except Exception as e:  # surface any failure in the UI
                 job.state = "cancelled" if job.cancel.is_set() else "error"
-                job.message = job.message or str(e)
+                job.message = str(e) or job.message   # the error, not the last progress text
 
     threading.Thread(target=run, daemon=True).start()
     return job

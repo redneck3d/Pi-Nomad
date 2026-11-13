@@ -48,9 +48,10 @@ PRESETS = [
      "desc": "About 6 GB: Ready.gov and a self-reliance library.",
      "items": [("ready.gov_en_all", None), ("lrnselfreliance_en_all", None)]},
     {"id": "reference", "title": "Reference shelf",
-     "desc": "About 13 GB: Wikibooks and Wiktionary, no images.",
+     "desc": "About 18 GB: Wikibooks and Wiktionary, no images.",
      "items": [("wikibooks_en_all", "nopic"), ("wiktionary_en_all", "nopic")]},
 ]
+NEVER_OFFER = {"gutenberg_en_all"}   # 221 GB; the smaller gutenberg_en_lcc-* slices are fine
 
 
 # ---------- catalog ----------
@@ -114,7 +115,7 @@ def _catalog_get(**params):
 
 
 def search(q="", lang="eng", count=20):
-    return _catalog_get(q=q, lang=lang, count=count)
+    return [e for e in _catalog_get(q=q, lang=lang, count=count) if e["name"] not in NEVER_OFFER]
 
 
 def resolve_preset(preset_id):
@@ -147,8 +148,17 @@ def _read_library():
 
 def _write_library(root):
     tmp = LIBRARY + ".tmp"
+    try:
+        before = int(os.path.getmtime(LIBRARY))
+    except OSError:
+        before = 0
     ET.ElementTree(root).write(tmp, encoding="UTF-8", xml_declaration=True)
     os.replace(tmp, LIBRARY)   # atomic, so kiwix-serve never reads a half-written file
+    # kiwix-serve reloads only when the whole-second mtime increases, so a second write
+    # within the same second would otherwise never be noticed.
+    st = os.stat(LIBRARY)
+    if int(st.st_mtime) <= before:
+        os.utime(LIBRARY, (st.st_atime, before + 1))
 
 
 def zim_uuid(path):
@@ -297,4 +307,13 @@ def _download(job, url, meta, retries=6):
 
 def start_download(url, meta):
     name = _safe_filename(url)            # validate before queueing
-    return jobs.start("zim", meta.get("title") or name, lambda j: _download(j, url, meta))
+    part = os.path.join(ZIM_DIR, name + ".part")
+
+    def run(job):
+        try:
+            _download(job, url, meta)
+        finally:                          # Cancel means abandon; only dropped connections resume
+            if job.cancel.is_set() and os.path.exists(part):
+                os.remove(part)
+
+    return jobs.start("zim", meta.get("title") or name, run)

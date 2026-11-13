@@ -1,15 +1,20 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Content Manager - Pi-NOMAD</title><link rel="stylesheet" href="/style.css"></head>
+<title>Content Manager - Pi-Nomad</title><meta name="theme-color" content="#141c2d">
+<link rel="icon" type="image/png" href="/img/favicon.png"><link rel="apple-touch-icon" href="/img/apple-touch-icon.png"><link rel="stylesheet" href="/style.css"></head>
 <body>
-<nav><a class="brand" href="/">PI-<b>NOMAD</b></a><a href="/">Dashboard</a><a href="/books/">Bookshelf</a><a class="cur" href="/zim.html">Content</a><a href="/maps/manage.html">Map regions</a></nav>
+<nav class="top"><a class="brand" href="/"><img src="/img/mark.png" alt="" width="192" height="145"><span>Pi-<b>Nomad</b></span></a>
+  <div class="links"><a href="/">Dashboard</a><a href="/books/">Bookshelf</a><a aria-current="page" href="/zim.html">Content</a><a href="/maps/manage.html">Map regions</a><a href="/maps/">Open map</a></div></nav>
+<hr class="bar-line">
 <div class="wrap">
-  <h1>Content Manager</h1>
-  <p class="sub">Download offline libraries from the Kiwix catalog. This needs an internet connection; everything you download works offline afterwards.</p>
+  <div class="page-head">
+    <h1>Content Manager</h1>
+    <p class="sub">Download offline libraries from the Kiwix catalog. This needs an internet connection; everything you download works offline afterwards.</p>
+  </div>
 
   <h3>Collections</h3>
   <div class="grid" id="presets"></div>
-  <div id="presetPreview"></div>
+  <div id="presetPreview" style="margin-top:1rem"></div>
 
   <h3>Search the catalog</h3>
   <div class="row">
@@ -36,8 +41,12 @@ let results = [], previewEntries = [];
 
 async function loadPresets() {
   const list = await api("/api/zim/presets");
-  $("presets").innerHTML = list.map(p => `<div class="card"><h2>${esc(p.title)}</h2><p>${esc(p.desc)}</p>
-    <button onclick="previewPreset('${esc(p.id)}', this)">Preview</button></div>`).join("");
+  $("presets").innerHTML = list.map(p => {
+    const m = p.desc.match(/^(About [\d.]+ GB): (.*)$/);   // show the size as a label
+    const text = m ? m[2][0].toUpperCase() + m[2].slice(1) : p.desc;
+    return `<div class="card"><h2>${esc(p.title)}</h2>${m ? `<span class="chip">${esc(m[1])}</span>` : ""}<p>${esc(text)}</p>
+      <button onclick="previewPreset('${esc(p.id)}', this)">Preview</button></div>`;
+  }).join("");
 }
 
 async function previewPreset(id, btn) {
@@ -51,6 +60,7 @@ async function previewPreset(id, btn) {
       ${r.missing.length ? `<p class="mut">Not found in the catalog: ${r.missing.map(esc).join(", ")}</p>` : ""}
       ${r.entries.length ? `<div class="row"><button class="go" onclick="downloadPreview()">Download all (${fmt(total)})</button></div>` : ""}</div>`;
   } catch (e) { $("presetPreview").innerHTML = `<div class="panel err">${esc(e.message)}. Are you online?</div>`; }
+  $("presetPreview").scrollIntoView({ block: "nearest" });
   btn.disabled = false; btn.textContent = "Preview";
 }
 async function downloadPreview() { for (const e of previewEntries) await queue(e); $("presetPreview").innerHTML = ""; }
