@@ -29,9 +29,12 @@ Added for the cyberdeck: `hotspot.sh` makes the Pi its own Wi-Fi network, so it 
 Needs Raspberry Pi OS 64-bit. Content lives in `/srv/nomad` on the SD card (see Storage below).
 
     sudo ./install.sh
-    sudo ./hotspot.sh MyDeck 'a-good-passphrase'   # optional
+    sudo ./hotspot.sh            # optional: makes the Pi its own Wi-Fi network; asks you for a password
+    sudo ./hotspot.sh off        # back to the normal Wi-Fi
 
-Then open `http://<pi>.local/`.
+Then open `http://<pi>.local/`, or `http://10.42.0.1/` when you are joined to the hotspot.
+
+The hotspot takes over the Pi's Wi-Fi, so start it over Ethernet or with a screen and keyboard. It comes back by itself after a restart.
 
 ## Storage (128GB SD card)
 
@@ -102,7 +105,6 @@ Review fixes, Backup, Search, and the Shut down and Restart buttons were each te
 
 ## Still not tested
 
-- **`hotspot.sh`:** it takes over the Wi-Fi, so connect Ethernet first.
 - **Biggest content:** files up to 3.7 GB work; the 14 GB and 53 GB Wikipedias are untried on 4 GB of RAM.
 - **Bookshelf with real books**, and the **admin PIN in a browser** on the Pi.
 - **Fan speed** on the system panel (needs a Pi fan fitted).

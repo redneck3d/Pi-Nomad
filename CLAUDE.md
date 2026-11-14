@@ -59,11 +59,13 @@ Search 2026-11-14: tested from a preview on the Pi against the 11 real libraries
 
 Shut down / restart 2026-11-14, on the real Pi from the dashboard buttons: Restart gave a new boot in 17 s and the dashboard back in 27 s, with the page reloading itself; Shut down took the Pi off the network in about 14 s, and after the owner powered it on all five apps, the helper, backup and search came back unaided. The request file was gone after both, so there is no restart loop.
 
-**Not yet tested:** `hotspot.sh` (it takes over wlan0, so connect Ethernet first); the 14 GB and 53 GB Wikipedias on 4 GB RAM; the bookshelf with real books; the admin PIN in a browser on the Pi; the fan reading.
+Hotspot 2026-11-14: `hotspot.sh` was rewritten (asks for the Wi-Fi password, so none is stored; `off` and `status` commands; WPA2-AES only; autoconnect priority 10 so it wins over the saved home Wi-Fi at boot; puts things back if it fails to start). Run on the real Pi over Ethernet: NetworkManager started the AP, wlan0 became 10.42.0.1, all five apps answered there, and the owner joined from a phone and used the dashboard. While the hotspot is on, the Pi is NOT on the home Wi-Fi: 192.168.1.26 is gone and it is reached from the LAN at 192.168.1.27 (Ethernet). Not yet tested: the hotspot coming back after a reboot, and `off`.
+
+**Not yet tested:** the 14 GB and 53 GB Wikipedias on 4 GB RAM; the bookshelf with real books; the admin PIN in a browser on the Pi; the fan reading; a restore from backup.
 
 ## Next work, in order
 
-1. Finish the Pi checks above: hotspot, real books, admin PIN.
+1. Finish the Pi checks above: real books, admin PIN, hotspot after a reboot.
 2. Meshtastic (researched 2026-11-09, nothing built): MeshMonitor plus its serial bridge for USB radios; open questions are offline map tiles and memory use.
 3. Dashboard start/stop buttons for the individual apps (discuss the risk first). The Docker socket is already root-equivalent: `:ro` on a socket does not restrict API calls.
 4. Map place search (geocoding); first-run setup wizard; auto-update option.
