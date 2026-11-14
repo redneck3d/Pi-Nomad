@@ -51,7 +51,7 @@ Combined 2026-11-12: the bookshelf, system panel and admin PIN were written on a
 
 Review fixes 2026-11-14 (cross-site POST check, body size cap, no folder listings, checksum verification, installed marks in the Content Manager, zip-bomb cap in the reader, log cap): 43 unit tests pass on the Pi; a real 21 MB ZIM downloaded and verified in an isolated preview; pages exercised in a browser.
 
-Backup 2026-11-14: tested on the Pi from a preview container against a real 57 GB exFAT stick mounted by the desktop at `/media/nomad/USB` (two test files copied and matched by SHA-256, zip download opened cleanly). Not yet tested: a drive plugged in after the container started (the `rslave` case), and a restore.
+Backup 2026-11-14: tested on the Pi from a preview container against a real 57 GB exFAT stick mounted by the desktop at `/media/nomad/USB` (two test files copied and matched by SHA-256, zip download opened cleanly). After install, the stick was unplugged and replugged while the container was running and reappeared in `/api/backup` (the `rslave` case works). Not yet tested: a restore.
 
 **Not yet tested:** `hotspot.sh` (it takes over wlan0, so connect Ethernet first); the 14 GB and 53 GB Wikipedias on 4 GB RAM; the bookshelf with real books; the admin PIN in a browser on the Pi; the fan reading.
 
