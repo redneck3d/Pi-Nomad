@@ -44,7 +44,9 @@ services:
         source: /media
         target: /media
         bind: { propagation: rslave }
-      - /var/run/docker.sock:/var/run/docker.sock:ro   # read-only status; start/stop comes later
+      # Docker's socket: status lights, and start / stop / restart of the four other apps
+      # (services.py allows nothing else). ":ro" does not limit what can be asked over a socket.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
 
   # ---- Information Library (Wikipedia, medical, survival ZIMs) ----
   kiwix:

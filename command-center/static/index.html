@@ -38,6 +38,9 @@
   <h3>Manage and tools</h3>
   <div class="tools" id="tools"></div>
 
+  <h3>Apps</h3>
+  <div class="panel apps" id="apps"><span class="empty">Loading&hellip;</span></div>
+
   <h3>System</h3>
   <div id="warn"></div>
   <div class="sys" id="system"><span class="empty">Loading&hellip;</span></div>
@@ -166,6 +169,31 @@ async function refreshSystem() {
   catch (e) { $("system").innerHTML = '<span class="empty">System readings unavailable.</span>'; }
 }
 
+// ----- start / stop the other apps -----
+const CONTROL = [["kiwix", "Information Library"], ["flatnotes", "Notes"], ["cyberchef", "Data Tools"], ["files", "Files"]];
+let appStates = {}, busyApp = "";
+function renderControls(services) {
+  appStates = services;
+  const known = Object.keys(services).length > 0;
+  if (!known) { $("apps").innerHTML = '<span class="empty">App status is unavailable, so the apps cannot be started or stopped from here.</span>'; return; }
+  $("apps").innerHTML = CONTROL.map(([svc, name]) => {
+    const st = services[svc], up = st === "running", wait = busyApp === svc;
+    const word = wait ? "Working\u2026" : up ? "Running" : st ? "Stopped" : "Not installed";
+    return `<div class="app"><b>${name}</b><span class="state ${wait ? "" : up ? "up" : "down"}"><i></i><span>${word}</span></span>
+      ${!st ? "" : up ? `<button ${wait ? "disabled" : ""} onclick="appAction('${svc}','restart')">Restart</button><button ${wait ? "disabled" : ""} onclick="appAction('${svc}','stop')">Stop</button>`
+                   : `<button class="go" ${wait ? "disabled" : ""} onclick="appAction('${svc}','start')">Start</button>`}</div>`;
+  }).join("");
+}
+async function appAction(svc, action) {
+  const name = CONTROL.find(c => c[0] === svc)[1];
+  if (action === "stop" && !confirm(`Stop ${name}? It stays off, even after the deck restarts, until you press Start.`)) return;
+  busyApp = svc; renderControls(appStates);
+  try { await api("/api/services", { service: svc, action }); }
+  catch (e) { alert(e.message); }
+  busyApp = "";
+  refresh();
+}
+
 // ----- shut down / restart -----
 async function loadPower() {
   try {
@@ -203,7 +231,7 @@ $("shutdown").onclick = () => powerAction("poweroff");
 async function refresh() {
   try {
     const d = await api("/api/status");
-    renderApps(d.services); renderStorage(d.storage); renderZims(d.zims);
+    renderApps(d.services); renderControls(d.services); renderStorage(d.storage); renderZims(d.zims);
     $("statMaps").textContent = (await api("/api/maps/list")).length;
   } catch (e) { renderApps({}); }
 }

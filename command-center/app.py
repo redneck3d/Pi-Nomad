@@ -3,12 +3,10 @@
 Serves the dashboard, the ZIM and map managers, offline map files (with HTTP Range
 support, which PMTiles needs), and a small JSON API.
 """
-import http.client
 import http.cookies
 import json
 import os
 import shutil
-import socket
 import time
 import urllib.parse
 import zipfile
@@ -22,12 +20,11 @@ import maps
 import places
 import power
 import search
+import services
 import system
 import zim
 
 DATA = os.environ.get("NOMAD_DATA", "/data")
-PROJECT = os.environ.get("COMPOSE_PROJECT", "pi-nomad")
-DOCKER_SOCK = os.environ.get("DOCKER_SOCK", "/var/run/docker.sock")
 STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 FOLDERS = ["zim", "maps", "notes", "books"]
 MAX_BODY = 64 * 1024     # our JSON requests are tiny; refuse anything that is not
@@ -35,30 +32,9 @@ MAX_BODY = 64 * 1024     # our JSON requests are tiny; refuse anything that is n
 _cache = {"t": 0.0, "sizes": {}}
 
 
-class UnixHTTPConnection(http.client.HTTPConnection):
-    def __init__(self, path):
-        super().__init__("localhost", timeout=3)
-        self._path = path
-
-    def connect(self):
-        s = socket.socket(socket.AF_UNIX)
-        s.settimeout(3)
-        s.connect(self._path)
-        self.sock = s
-
-
 def service_states():
     """Map compose service name -> container state, or {} if Docker is unreachable."""
-    conn = UnixHTTPConnection(DOCKER_SOCK)
-    try:
-        flt = json.dumps({"label": [f"com.docker.compose.project={PROJECT}"]})
-        conn.request("GET", "/containers/json?all=1&filters=" + urllib.parse.quote(flt))
-        items = json.loads(conn.getresponse().read())
-        return {c["Labels"].get("com.docker.compose.service"): c["State"] for c in items}
-    except Exception:
-        return {}
-    finally:
-        conn.close()
+    return services.states()
 
 
 def folder_size(path):
@@ -370,6 +346,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self._guard(lambda: {"added": zim.rescan()})
         if p == "/api/power":
             return self._guard(lambda: power.request(b.get("action")))
+        if p == "/api/services":
+            return self._guard(lambda: services.act(b.get("service"), b.get("action")))
         if p == "/api/backup/usb":
             return self._guard(lambda: backup.start_usb(b["drive"], b.get("books", True)).public())
         if p == "/api/jobs/cancel":

@@ -16,7 +16,7 @@ An offline-first knowledge server for a Raspberry Pi 5, modeled on [Project NOMA
 | Your own books (not in NOMAD) | Bookshelf at `/books/`: lists EPUB and PDF files from `/srv/nomad/books`, built-in EPUB reader | Tested on the Pi with 30 real books |
 | System info | System panel on the dashboard: temperature, fan, processor, memory, uptime, drive writes, clock check, power and heat warnings | Checked on the real Pi except the fan reading (no fan fitted) |
 | Admin lock (not in NOMAD) | Optional admin PIN: reading stays open, downloads, deletes, backup and power need the PIN | Tested on the Pi |
-| Command Center (dashboard) | `command-center` (Python, no deps) | Done: tiles, live status, storage, content and map managers. Start/stop buttons are next |
+| Command Center (dashboard) | `command-center` (Python, no deps) | Done: tiles, live status, storage, content and map managers, app start/stop |
 | Setup wizard + content collections | `install.sh` + Content Manager collections | Collections done; no first-run wizard yet |
 | Auto updates | none | Phase 3 (Watchtower or cron) |
 | Benchmark | none | Optional |
@@ -51,6 +51,10 @@ The card has about 96GB free after install. All 7 collections together come to a
 - **ZIM manager:** searches the Kiwix catalog, downloads into `/srv/nomad/zim` (resumes if Wi-Fi drops, one download at a time, refuses if the card would fill up), checks each file against the checksum Kiwix publishes, and adds the file to `library.xml` itself. Kiwix reloads that file automatically.
 - **Files app:** browse, upload and delete anything on the data drive. After adding or deleting a ZIM there, press **Rescan folder** in the Content Manager. A note uploaded there can't be edited in Notes until the `flatnotes` container restarts.
 - **Maps:** the Protomaps planet file is far too big for the card, so the manager cuts out just your region with the `pmtiles extract` tool. The viewer (MapLibre) and Protomaps' fonts and icons are bundled into the Docker image, so maps work with no internet. You can also drop any `.pmtiles` file into `/srv/nomad/maps`.
+
+## Starting and stopping apps
+
+The Apps panel on the dashboard can stop, start or restart the Library, Notes, Data Tools and Files. A stopped app stays off, even after the deck restarts, until you press Start. The dashboard itself has no stop button. If an admin PIN is set, these buttons need it.
 
 ## Shut down and restart
 
@@ -115,7 +119,7 @@ Review fixes, Backup, Search, and the Shut down and Restart buttons were each te
 ## Next steps
 
 1. Finish the Pi checks: hotspot, real books, admin PIN.
-2. Command Center: start/stop buttons, updates.
+2. Command Center: updates.
 4. Kolibri: pick and test an arm64 image.
 
 ## Notes

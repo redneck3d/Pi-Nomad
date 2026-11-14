@@ -20,7 +20,7 @@ os.makedirs(os.environ["ZIM_DIR"]); os.makedirs(os.environ["MAPS_DIR"]); os.make
 
 import zipfile  # noqa: E402
 
-import app, auth, backup, books, jobs, maps, places, power, search, system, zim  # noqa: E402
+import app, auth, backup, books, jobs, maps, places, power, search, services, system, zim  # noqa: E402
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
 CH = '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>{0}</title></head><body><h1>{0}</h1><p>Text of {0}.</p>{1}</body></html>'
@@ -1135,6 +1135,112 @@ class BackupTests(unittest.TestCase):
         self.assertEqual(info["sizes"]["books"]["files"], 1)
 
 
+class FakeDocker(http.server.BaseHTTPRequestHandler):
+    """Answers like Docker's API on a Unix socket and remembers what it was asked to do."""
+    calls = []
+    containers = {}        # service -> state
+    refuse = False
+
+    def log_message(self, *a): pass
+
+    def address_string(self): return "docker"
+
+    def _send(self, code, obj=None):
+        body = json.dumps(obj).encode() if obj is not None else b""
+        self.send_response(code)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self):
+        self._send(200, [{"Id": "id-" + s, "State": st, "Labels": {"com.docker.compose.service": s,
+                                                                    "com.docker.compose.project": "pi-nomad"}}
+                         for s, st in self.containers.items()])
+
+    def do_POST(self):
+        FakeDocker.calls.append(self.path)
+        _, _, cid, rest = self.path.split("/", 3)
+        action, svc = rest.split("?")[0], cid[3:]
+        if FakeDocker.refuse:
+            return self._send(500, {"message": "no space left on device"})
+        was = self.containers[svc]
+        self.containers[svc] = "exited" if action == "stop" else "running"
+        self._send(304 if (action == "stop") == (was == "exited") and action != "restart" else 204)
+
+
+class ServiceControlTests(unittest.TestCase):
+    """Start, stop and restart go to Docker for the four apps and for nothing else."""
+
+    @classmethod
+    def setUpClass(cls):
+        import socketserver
+        cls.sock = os.path.join(tempfile.mkdtemp(dir=TMP), "docker.sock")
+
+        class Server(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
+            daemon_threads = True
+        cls.docker = Server(cls.sock, FakeDocker)
+        threading.Thread(target=cls.docker.serve_forever, daemon=True).start()
+        cls.srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
+        threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
+        cls.saved, services.DOCKER_SOCK = services.DOCKER_SOCK, cls.sock
+
+    @classmethod
+    def tearDownClass(cls):
+        services.DOCKER_SOCK = cls.saved
+        cls.docker.shutdown(); cls.srv.shutdown()
+
+    def setUp(self):
+        FakeDocker.calls, FakeDocker.refuse = [], False
+        FakeDocker.containers = {"command-center": "running", "kiwix": "running", "flatnotes": "running",
+                                 "cyberchef": "exited", "files": "running"}
+
+    def post(self, service, action):
+        req = urllib.request.Request(f"http://127.0.0.1:{self.srv.server_port}/api/services", headers=JSON,
+                                     data=json.dumps({"service": service, "action": action}).encode())
+        try:
+            r = urllib.request.urlopen(req)
+        except urllib.error.HTTPError as e:
+            r = e
+        return (r.status if hasattr(r, "status") else r.code), json.load(r)
+
+    def test_status_comes_from_docker(self):
+        self.assertEqual(services.states()["cyberchef"], "exited")
+        status = json.load(urllib.request.urlopen(f"http://127.0.0.1:{self.srv.server_port}/api/status"))
+        self.assertEqual(status["services"]["kiwix"], "running")
+
+    def test_stop_start_and_restart(self):
+        self.assertEqual(self.post("kiwix", "stop"), (200, {"ok": True, "service": "kiwix", "state": "exited"}))
+        self.assertEqual(self.post("kiwix", "start")[1]["state"], "running")
+        self.assertEqual(self.post("cyberchef", "start")[1]["state"], "running")
+        self.assertEqual(self.post("files", "restart")[1]["state"], "running")
+        self.assertEqual(self.post("flatnotes", "start")[0], 200)                 # already running: fine, not an error
+        self.assertEqual(FakeDocker.calls, ["/containers/id-kiwix/stop?t=10", "/containers/id-kiwix/start",
+                                            "/containers/id-cyberchef/start", "/containers/id-files/restart?t=10",
+                                            "/containers/id-flatnotes/start"])
+
+    def test_nothing_else_can_be_touched(self):
+        for service, action in [("command-center", "stop"), ("command-center", "restart"), ("kiwix", "kill"),
+                                ("kiwix", "remove"), ("kiwix", ""), ("../../images", "stop"), ("id-kiwix/stop?x=", "stop"),
+                                (None, "stop"), ("kiwix", None), (["kiwix"], "stop")]:
+            self.assertEqual(self.post(service, action)[0], 400, (service, action))
+        self.assertEqual(FakeDocker.calls, [])
+        del FakeDocker.containers["cyberchef"]
+        status, data = self.post("cyberchef", "start")
+        self.assertEqual((status, data["error"]), (400, "Data Tools is not installed"))
+
+    def test_docker_problems_are_reported_plainly(self):
+        FakeDocker.refuse = True
+        status, data = self.post("kiwix", "stop")
+        self.assertEqual(status, 400)
+        self.assertIn("no space left on device", data["error"])
+        services.DOCKER_SOCK, keep = os.path.join(TMP, "no-such.sock"), services.DOCKER_SOCK
+        try:
+            self.assertEqual(services.states(), {})
+            self.assertIn("Docker is not answering", self.post("kiwix", "stop")[1]["error"])
+        finally:
+            services.DOCKER_SOCK = keep
+
+
 class PowerTests(unittest.TestCase):
     """The app only ever writes one word to a file; the helper on the Pi does the rest."""
 
@@ -1235,6 +1341,7 @@ class AuthTests(unittest.TestCase):
         for path, body in [("/api/zim/download", {"url": "https://download.kiwix.org/zim/a.zim"}),
                            ("/api/zim/delete", {"file": "x.zim"}), ("/api/zim/rescan", {}),
                            ("/api/jobs/cancel", {"id": "x"}), ("/api/power", {"action": "poweroff"}),
+                           ("/api/services", {"service": "kiwix", "action": "stop"}),
                            ("/api/backup/usb", {"drive": "x"}),
                            ("/api/maps/extract", {"region": "detroit", "detail": "overview"}),
                            ("/api/maps/estimate", {"region": "detroit", "detail": "overview"}),

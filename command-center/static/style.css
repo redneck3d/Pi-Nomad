@@ -133,6 +133,12 @@ a.tool.off { opacity:.62; }
 .gauge i.warm { background:var(--amber); } .gauge i.hot { background:var(--bad); }
 .warnbox { border:1px solid var(--amber); background:rgba(234,166,64,.1); color:var(--amber); border-radius:10px; padding:.65rem .9rem; margin-bottom:.6rem; font-size:.93rem; }
 
+.apps { display:grid; gap:0; }
+.apps .app { display:flex; flex-wrap:wrap; align-items:center; gap:.4rem .8rem; padding:.6rem 0; border-top:1px solid var(--line); }
+.apps .app:first-child { border-top:0; padding-top:.1rem; } .apps .app:last-child { padding-bottom:.1rem; }
+.apps .app b { flex:1 1 9rem; font-weight:600; }
+.apps .app .state { margin:0; flex:0 0 6.5rem; }
+.apps .app button { min-height:38px; padding:.3rem .8rem; }
 .power { display:flex; flex-wrap:wrap; align-items:center; gap:.6rem 1rem; margin-top:.75rem; }
 .power p { flex:1 1 16rem; margin:0; color:var(--mut); font-size:.92rem; }
 .veil { position:fixed; inset:0; z-index:60; display:grid; place-items:center; padding:1.5rem; background:rgba(15,22,36,.96); text-align:center; }

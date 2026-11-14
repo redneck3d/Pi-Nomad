@@ -17,9 +17,10 @@ Owner: Mike, who runs a 3D printing and printer repair business in Wayne, Michig
   - `power.py` Shut down and Restart buttons on the dashboard (`/api/power`). The container cannot power the Pi off, so `install.sh` installs a host helper: `/usr/local/sbin/pi-nomad-power` plus `pi-nomad-power.path`/`.service` (systemd). The app writes `poweroff` or `reboot` to `/var/lib/pi-nomad/power/request` (bound in at `/power`); the path unit runs the helper, which deletes the file, waits 2 s and calls `systemctl`. Any other word is ignored. `helper-installed` in that folder tells the app the helper exists. The owner chose NOT to require the admin PIN for these buttons; they are a normal POST, so a PIN, once set, covers them like every other change.
   - `static/app.html` shows the Library, Notes, Data Tools or Files in an iframe under a slim bar with a Dashboard button, because those apps have no link home (`/app.html?app=library|notes|tools|files&path=/...`; only those four names and a plain path are accepted). Every link into those apps goes through `appUrl()` in `shared.js`. None of the four sends `X-Frame-Options` or `frame-ancestors` (checked 2026-11-14); if an image upgrade starts sending one, that app will show blank under the bar. The owner confirmed all four render on his PC; the built-in browser pane cannot show cross-origin frames, so it cannot be used to check this.
   - `places.py` place search on the map (`/api/maps/search?file=&q=&lon=&lat=`, box in `static/maps/index.html`). Fully offline: the names are read out of the `.pmtiles` file itself by a stdlib PMTiles v3 reader and a minimal vector-tile (protobuf) decoder, then kept in `<map>.places.db` (SQLite) beside the map. Towns come from zoom 12, streets, landmarks and water from zoom 14 (or the map's top zoom if lower), layers `places`, `roads`, `pois`, `water` of the Protomaps basemap. `kind_detail` (city/town/village/hamlet) decides the label and which places count as real towns for the "near ..." text. A `words` table makes lookups a few ms. The index is built after each extract and, at startup, for any map without a current one (shown as a job in Map regions). Measured on the Pi: Michigan detailed (1.1 GB, 735,000 names) indexes in about 65 s using 30 MB of memory, and the index file is 177 MB. If Protomaps renames layers or fields, search quietly finds less: re-check with a real map.
+  - `services.py` Docker access: status lights (`states()`) and Stop / Start / Restart for the four other apps (`POST /api/services {service, action}`, Apps panel on the dashboard). It only acts on containers of this compose project named in `CONTROLLABLE` (kiwix, flatnotes, cyberchef, files) with `start|stop|restart`; the Command Center cannot stop itself. A stopped app stays stopped across reboots (`restart: unless-stopped`) until Start is pressed. The owner agreed to this after the risk was explained; do not widen the list of apps or actions without asking him.
   - `static/`: dashboard (`index.html`), Content Manager (`zim.html`), map viewer (`maps/index.html`), map region manager (`maps/manage.html`), bookshelf (`books/`). All share `style.css` (colours taken from the logo) and `shared.js`. `img/` holds the logo cut-outs and icons; `fonts/` bundles Outfit (OFL), so the design needs no internet.
   - `Dockerfile`: 3 stages: Go builds `pmtiles`; Node fetches maplibre-gl@5, pmtiles@4, @protomaps/basemaps@5 plus Protomaps fonts/sprites from GitHub; Python runs the app.
-  - `tests/test_backend.py`: 63 unit tests. Run: `cd command-center && python3 tests/test_backend.py`
+  - `tests/test_backend.py`: 67 unit tests. Run: `cd command-center && python3 tests/test_backend.py`
 - `install.sh` (Docker + data dirs + `docker compose up -d --build`), `hotspot.sh` (Wi-Fi AP via NetworkManager).
 - Data lives in `/srv/nomad/{zim,maps,notes,books}`. Command-center mounts `zim` and `maps` writable, the rest read-only, plus the `nomad-config` volume at `/config`.
 - `.gitattributes` forces LF line endings. Keep it: `install.sh` copied to the Pi with Windows line endings will not run.
@@ -69,15 +70,16 @@ Admin PIN 2026-11-14, on the live Pi with a PIN the owner set in his browser: fr
 
 Place search 2026-11-14: unit-tested with a hand-built PMTiles file; on the Pi the real Michigan map was indexed inside a preview container and searched from the map page (street, town, highway and landmark queries; nearest street first; pin and jump to the result). The built-in browser pane does not animate while hidden, so `flyTo` can look stuck there.
 
+App start/stop 2026-11-14: unit-tested against a stand-in Docker socket; from a preview container on the Pi, CyberChef was really stopped, started and restarted through the `:ro`-mounted socket (each under a second), the status lights followed, and stopping the Command Center or an unknown action was refused.
+
 **Not yet tested:** the 14 GB and 53 GB Wikipedias on 4 GB RAM; the fan reading.
 
 ## Next work, in order
 
 1. Finish the Pi checks above: hotspot after a reboot.
 2. Meshtastic (researched 2026-11-09, nothing built): MeshMonitor plus its serial bridge for USB radios; open questions are offline map tiles and memory use.
-3. Dashboard start/stop buttons for the individual apps (discuss the risk first). The Docker socket is already root-equivalent: `:ro` on a socket does not restrict API calls.
-4. First-run setup wizard; auto-update option.
-5. Kolibri: find a maintained arm64 image, test it, then uncomment in `compose.yaml`.
+3. First-run setup wizard; auto-update option.
+4. Kolibri: find a maintained arm64 image, test it, then uncomment in `compose.yaml`.
 ## Working style
 
 - Verify against real sources before claiming something works; say plainly what wasn't tested.
