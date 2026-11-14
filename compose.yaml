@@ -74,7 +74,9 @@ services:
   # ---- Data tools: encode/decode/hash/crypto ----
   cyberchef:
     <<: *defaults
-    image: ghcr.io/gchq/cyberchef:10   # major version; ships arm64; nginx inside listens on 8080
+    # Major version 11: its nginx listens on 8080. Version 10 listened on 80, so the port below
+    # must be re-checked whenever this number changes.
+    image: ghcr.io/gchq/cyberchef:11
     ports: ["8082:8080"]
 
   # ---- File manager for the data drive (ZIMs, PDFs, maps) ----

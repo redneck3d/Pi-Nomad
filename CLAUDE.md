@@ -40,7 +40,7 @@ Owner: Mike, who runs a 3D printing and printer repair business in Wayne, Michig
 - Downloads are checked against the `<url>.sha256` file Kiwix publishes (verified live 2026-11-14 on `lb.download.kiwix.org`). A mismatch deletes the file; no checksum file means no check.
 - Static files are served by `_static` in `app.py`: text types are gzipped (kept in memory by date and size), everything gets an ETag, and `/img/`, `/fonts/`, `/maps/lib/`, `/maps/assets/` may be cached by browsers for a day. After changing a file in those folders, a browser can show the old one for up to a day unless it is force-reloaded.
 - Pages poll through `every()` in `shared.js`, which pauses while the tab is hidden.
-- Versions are pinned on purpose: `go-pmtiles@v1.31.2` in the Dockerfile, `dullage/flatnotes:v5`, `ghcr.io/gchq/cyberchef:10`, Kolibri 0.19.5, kiwix-serve 3.8.2, dufs v0.47.0. An install needs internet (it rebuilds two images).
+- Versions are pinned on purpose: `go-pmtiles@v1.31.2` in the Dockerfile, `dullage/flatnotes:v5`, `ghcr.io/gchq/cyberchef:11` (v10 listens on port 80, v11 on 8080: pinning to `10` on 2026-11-14 took Data Tools offline until corrected), Kolibri 0.19.5, kiwix-serve 3.8.2, dufs v0.47.0. An install needs internet (it rebuilds two images).
 - Successful GETs are not logged (dashboards poll every few seconds), and compose caps each container log at 3 x 5 MB.
 - maplibre-gl **6.x is ESM-only**; we use 5.x because the viewer loads the UMD build with a plain `<script>`.
 - Only a light admin PIN (see `auth.py`); the other apps (Files, Notes, Kiwix) are not behind it. Don't expose to the internet.
