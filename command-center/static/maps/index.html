@@ -13,12 +13,25 @@
   #bar a.home b { color:var(--amber); font-weight:700; }
   #bar a.home img { width:38px; height:auto; }
   #bar select { min-height:38px; padding:.25rem .5rem; flex:0 1 auto; min-width:0; }
+  #find { display:flex; gap:.35rem; flex:1 1 13rem; min-width:0; position:relative; }
+  #find input { flex:1; min-width:0; min-height:38px; padding:.25rem .6rem; }
+  #find button { min-height:38px; padding:.25rem .7rem; }
+  #hits { position:absolute; top:calc(100% + .5rem); left:0; right:0; max-height:min(60vh, 26rem); overflow:auto; margin:0; padding:.3rem;
+          list-style:none; background:rgba(20,28,45,.97); border:1px solid var(--line); border-radius:12px; }
+  #hits:empty { display:none; }
+  #hits li { padding:.5rem .6rem; border-radius:8px; cursor:pointer; }
+  #hits li:hover, #hits li.on { background:var(--panel-2); }
+  #hits b { display:block; font-weight:600; overflow-wrap:anywhere; }
+  #hits small { color:var(--mut); }
+  #hits li.note { cursor:default; color:var(--mut); } #hits li.note:hover { background:none; }
   #map { position:absolute; inset:0; }
   #empty { position:absolute; inset:0; display:none; align-items:center; justify-content:center; text-align:center; padding:2rem; }
   #empty h2 { font-size:1.6rem; margin:0 0 .4rem; }
 </style></head>
 <body>
-<div id="bar"><a class="home" href="/" title="Back to the dashboard"><img src="/img/mark.png" alt="" width="192" height="145"><span>Pi-<b>Nomad</b></span></a><select id="file" aria-label="Map region"></select><a href="/maps/manage.html">Manage regions</a></div>
+<div id="bar"><a class="home" href="/" title="Back to the dashboard"><img src="/img/mark.png" alt="" width="192" height="145"><span>Pi-<b>Nomad</b></span></a><select id="file" aria-label="Map region"></select>
+  <form id="find" role="search"><input id="q" type="search" placeholder="Find a town, street or place" aria-label="Find a town, street or place" autocomplete="off" maxlength="80"><button>Find</button><ul id="hits"></ul></form>
+  <a href="/maps/manage.html">Manage regions</a></div>
 <div id="map"></div>
 <div id="empty"><div><h2>No offline maps yet</h2><p class="mut">Download a region (for example Michigan) while you have internet.</p>
   <p><a href="/maps/manage.html">Open the map region manager</a></p></div></div>
@@ -28,7 +41,8 @@
 <script>
 const protocol = new pmtiles.Protocol();
 maplibregl.addProtocol("pmtiles", protocol.tile);
-let map;
+let map, pin, hits = [];
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
 
 async function show(file) {
   const url = location.origin + "/maps-data/" + encodeURIComponent(file);
@@ -54,7 +68,40 @@ async function show(file) {
   map.addControl(new maplibregl.NavigationControl(), "bottom-right");
   map.addControl(new maplibregl.ScaleControl({ unit: "imperial" }), "bottom-left");
   localStorageSafe("set", file);
+  pin = null; hits = []; document.getElementById("hits").innerHTML = ""; document.getElementById("q").value = "";
 }
+
+// ----- place search: names come from the map file itself, so this works with no internet -----
+async function find() {
+  const box = document.getElementById("hits"), q = document.getElementById("q").value.trim();
+  if (q.length < 2 || !map) { box.innerHTML = ""; return; }
+  const c = map.getCenter();
+  const file = document.getElementById("file").value;
+  box.innerHTML = '<li class="note">Searching\u2026</li>';
+  let r;
+  try {
+    const res = await fetch(`/api/maps/search?file=${encodeURIComponent(file)}&q=${encodeURIComponent(q)}&lon=${c.lng.toFixed(5)}&lat=${c.lat.toFixed(5)}`);
+    r = await res.json();
+    if (!res.ok || r.error) throw new Error(r.error || res.statusText);
+  } catch (e) { box.innerHTML = `<li class="note">${esc(e.message)}</li>`; return; }
+  if (!r.ready) { box.innerHTML = '<li class="note">The place names for this map are still being read. Try again in a minute or two.</li>'; return; }
+  hits = r.results;
+  box.innerHTML = hits.length ? hits.map((h, i) => `<li data-i="${i}"><b>${esc(h.name)}</b><small>${esc(h.kind)}${h.near ? " \u00b7 near " + esc(h.near) : ""}</small></li>`).join("")
+    : '<li class="note">Nothing by that name on this map.</li>';
+  if (hits.length === 1) go(0);
+}
+function go(i) {
+  const h = hits[i]; if (!h) return;
+  if (pin) pin.remove();
+  pin = new maplibregl.Marker({ color: "#eaa640" }).setLngLat([h.lon, h.lat]).addTo(map);
+  map.flyTo({ center: [h.lon, h.lat], zoom: Math.max(map.getZoom(), h.zoom), essential: true });
+  document.getElementById("hits").innerHTML = "";
+  document.getElementById("q").blur();
+}
+document.getElementById("find").onsubmit = e => { e.preventDefault(); find(); };
+document.getElementById("hits").onclick = e => { const li = e.target.closest("li[data-i]"); if (li) go(+li.dataset.i); };
+document.getElementById("q").addEventListener("search", () => { if (!document.getElementById("q").value) document.getElementById("hits").innerHTML = ""; });
+document.addEventListener("keydown", e => { if (e.key === "Escape") document.getElementById("hits").innerHTML = ""; });
 
 function localStorageSafe(op, v) {   // remembering the last map is a nicety; never fail on it
   try { return op === "set" ? localStorage.setItem("lastMap", v) : localStorage.getItem("lastMap"); } catch (e) { return null; }

@@ -83,7 +83,7 @@ services:
     # Runs as root, which it needs because /srv/nomad and all downloads are root-owned.
     image: sigoden/dufs:v0.47.0
     # --hidden only trims the listing: the app's own bookkeeping files stay out of the way.
-    command: ["--allow-all", "--hidden", "library.xml,library.xml.tmp,*.part,.flatnotes", "/srv"]
+    command: ["--allow-all", "--hidden", "library.xml,library.xml.tmp,*.part,.flatnotes,*.places.db,*.places.db.tmp", "/srv"]
     ports: ["8083:5000"]
     volumes:
       - ${NOMAD_DATA:-/srv/nomad}:/srv

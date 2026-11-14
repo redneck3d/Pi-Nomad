@@ -11,6 +11,7 @@ import subprocess
 import urllib.request
 
 import jobs
+import places
 
 MAPS_DIR = os.environ.get("MAPS_DIR", "/data/maps")
 PMTILES_BIN = os.environ.get("PMTILES_BIN", "pmtiles")
@@ -111,7 +112,33 @@ def _extract(job, stem, bbox, maxzoom):
     if code != 0:
         raise RuntimeError("pmtiles failed: " + " | ".join(tail[-2:]))
     os.replace(part, final)
+    index_places(job, final)
     job.message = ""
+
+
+def index_places(job, path):
+    """Read the place names out of a map so it can be searched. A failure here never loses the map."""
+    job.message = "Reading place names"
+    job.done = job.total = 0
+    try:
+        places.build_index(path, job)
+    except InterruptedError:
+        pass
+    except Exception as e:                      # the map itself is fine; search just stays off for it
+        job.message = f"Could not read place names: {e}"
+        return
+    job.message = ""
+
+
+def index_missing():
+    """Queue an index job for every map that has none yet (maps saved before search existed, or copied in)."""
+    started = []
+    for m in list_maps():
+        path = os.path.join(MAPS_DIR, m["name"])
+        if not places.is_current(path):
+            started.append(jobs.start("map", "Place names for " + m["name"][:-len(".pmtiles")],
+                                      lambda j, p=path: index_places(j, p)))
+    return started
 
 
 def start_extract(region_id, bbox, detail):
@@ -136,4 +163,6 @@ def list_maps():
 def delete(filename):
     if os.path.basename(filename) != filename or not filename.endswith(".pmtiles"):
         raise ValueError("bad file name")
-    os.remove(os.path.join(MAPS_DIR, filename))
+    path = os.path.join(MAPS_DIR, filename)
+    os.remove(path)
+    places.remove_index(path)

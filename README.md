@@ -60,6 +60,10 @@ The dashboard has Restart and Shut down buttons under the system readings. Use S
 
 The search box on the dashboard looks through every library, your notes and your book titles at once. Library results come from Kiwix, so anything you install is searchable straight away. The text inside your own books is not searched, only titles and authors.
 
+## Finding places on the map
+
+The map has a search box for towns, streets, highways, parks, lakes and other named places. It works with no internet: the names come out of the map file you already downloaded. After a region is saved the deck reads its names once (about a minute for all of Michigan in full detail), and maps saved earlier are read the next time the deck starts. Streets are listed nearest-first with the town they are in, and the usual short forms work (`main st`, `mt clemens`, `telegraph rd`). There are no house numbers, so it finds the street, not the address.
+
 ## Backup
 
 The Backup page copies your notes and books to a USB drive plugged into the Pi, into a dated folder inside `pi-nomad-backup`. It can also download your notes as a zip to the phone or PC you are using. Libraries and maps are not copied because they can be downloaded again; every backup includes `installed-content.txt`, a list of them. To restore, upload the `notes` and `books` folders back through the Files app, then press Restart on the dashboard (restored notes can be read but not edited until the Notes app restarts). USB drives are found through the Pi desktop, which mounts them automatically while it is logged in.
@@ -112,7 +116,6 @@ Review fixes, Backup, Search, and the Shut down and Restart buttons were each te
 
 1. Finish the Pi checks: hotspot, real books, admin PIN.
 2. Command Center: start/stop buttons, updates.
-3. Place search on the map (geocoding).
 4. Kolibri: pick and test an arm64 image.
 
 ## Notes

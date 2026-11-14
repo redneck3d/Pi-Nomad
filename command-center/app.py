@@ -19,6 +19,7 @@ import backup
 import books
 import jobs
 import maps
+import places
 import power
 import search
 import system
@@ -334,6 +335,14 @@ class Handler(SimpleHTTPRequestHandler):
             return self._guard(lambda: zim.resolve_preset(q.get("id", "")))
         if p == "/api/maps/regions":
             return self._json({"regions": maps.REGIONS, "detail": list(maps.DETAIL)})
+        if p == "/api/maps/search":
+            def find():
+                try:
+                    here = (float(q["lon"]), float(q["lat"]))
+                except (KeyError, ValueError):
+                    here = (None, None)
+                return places.search(q.get("file", ""), q.get("q", ""), *here)
+            return self._guard(find)
         if p == "/api/maps/list":
             return self._json(maps.list_maps())
         super().do_GET()
@@ -377,6 +386,10 @@ class Handler(SimpleHTTPRequestHandler):
 if __name__ == "__main__":
     try:
         zim.rescan()   # pick up ZIMs that were copied in while we were stopped
+    except OSError:
+        pass
+    try:
+        maps.index_missing()   # maps saved before place search existed get their names read now, in the background
     except OSError:
         pass
     port = int(os.environ.get("PORT", "80"))

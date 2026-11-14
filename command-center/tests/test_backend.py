@@ -20,7 +20,7 @@ os.makedirs(os.environ["ZIM_DIR"]); os.makedirs(os.environ["MAPS_DIR"]); os.make
 
 import zipfile  # noqa: E402
 
-import app, auth, backup, books, jobs, maps, power, search, system, zim  # noqa: E402
+import app, auth, backup, books, jobs, maps, places, power, search, system, zim  # noqa: E402
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
 CH = '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>{0}</title></head><body><h1>{0}</h1><p>Text of {0}.</p>{1}</body></html>'
@@ -446,6 +446,208 @@ class MapsTests(unittest.TestCase):
         job = maps.start_extract("indiana", None, "overview")
         wait(job)
         self.assertEqual((job.state, job.message), ("error", "Could not find a recent Protomaps build"))
+
+
+# ---- a hand-made PMTiles v3 file with vector tiles, in the same layout Protomaps uses ----
+
+def _vi(n):
+    out = bytearray()
+    while True:
+        b = n & 0x7F
+        n >>= 7
+        out.append(b | (0x80 if n else 0))
+        if not n:
+            return bytes(out)
+
+
+def _pb(num, payload):
+    """A protobuf field: bytes are length-delimited, an int is a varint."""
+    if isinstance(payload, int):
+        return _vi(num << 3) + _vi(payload)
+    return _vi(num << 3 | 2) + _vi(len(payload)) + payload
+
+
+def _zz(n):
+    return (n << 1) ^ (n >> 63)
+
+
+def mvt_layer(name, features, extent=4096):
+    """features: list of (props dict, [(x, y), ...]). One point = a point; more = a line."""
+    keys, values, body = [], [], b""
+    for props, pts in features:
+        tags = b""
+        for k, v in props.items():
+            if k not in keys:
+                keys.append(k)
+            if v not in values:
+                values.append(v)
+            tags += _vi(keys.index(k)) + _vi(values.index(v))
+        geom, (x, y) = _vi(1 << 3 | 1) + _vi(_zz(pts[0][0])) + _vi(_zz(pts[0][1])), pts[0]
+        if len(pts) > 1:
+            geom += _vi((len(pts) - 1) << 3 | 2)
+            for nx, ny in pts[1:]:
+                geom += _vi(_zz(nx - x)) + _vi(_zz(ny - y))
+                x, y = nx, ny
+        body += _pb(2, _pb(2, tags) + _pb(3, 1 if len(pts) == 1 else 2) + _pb(4, geom))
+    out = _pb(15, 2) + _pb(1, name.encode()) + body
+    out += b"".join(_pb(3, k.encode()) for k in keys)
+    out += b"".join(_pb(4, _pb(1, v.encode()) if isinstance(v, str) else _pb(4, v)) for v in values)
+    return _pb(3, out + _pb(5, extent))
+
+
+def make_pmtiles(path, zoom, tiles, leaf=False):
+    """tiles: {(x, y): raw tile bytes}. With leaf=True the root directory points at a leaf directory."""
+    import gzip, struct
+    base = places._zoom_base(zoom)
+    ids = {places.tile_xy(zoom, i): i for i in range(base, base + 4 ** zoom)}
+    entries, data = [], b""
+    for xy in sorted(tiles, key=lambda t: ids[t]):
+        blob = gzip.compress(tiles[xy])
+        entries.append((ids[xy], 1, len(data), len(blob)))
+        data += blob
+
+    def directory(rows):
+        out, last = _vi(len(rows)), 0
+        for tid, _, _, _ in rows:
+            out += _vi(tid - last)
+            last = tid
+        out += b"".join(_vi(r[1]) for r in rows) + b"".join(_vi(r[3]) for r in rows)
+        out += b"".join(_vi(r[2] + 1) for r in rows)
+        return gzip.compress(out)
+
+    leaves = directory(entries) if leaf else b""
+    root = directory([(entries[0][0], 0, 0, len(leaves))]) if leaf else directory(entries)
+    root_off, leaf_off = 127, 127 + len(root)
+    data_off = leaf_off + len(leaves)
+    head = b"PMTiles" + bytes([3]) + struct.pack("<11Q", root_off, len(root), 0, 0, leaf_off, len(leaves), data_off, len(data),
+                                                  len(entries), len(entries), len(entries))
+    head += bytes([1, 2, 2, 1, 0, zoom]) + struct.pack("<4i", -900000000, 400000000, -800000000, 500000000)
+    head += bytes([zoom]) + struct.pack("<2i", -850000000, 450000000)
+    assert len(head) == 127
+    with open(path, "wb") as fh:
+        fh.write(head + root + leaves + data)
+
+
+class PlacesTests(unittest.TestCase):
+    """Place names are read out of the map file itself, then searched."""
+
+    @classmethod
+    def setUpClass(cls):
+        town = {"kind": "locality", "kind_detail": "town", "population_rank": 12}
+        # Tile (2,2) holds Wayne; tile (5,2) holds Plymouth. Both have a Main Street. At zoom 3 one tile unit is
+        # about a kilometre, so streets sit within a few units of their town to count as "near" it.
+        west = (mvt_layer("places", [({"name": "Wayne", **town}, [(1000, 1000)]),
+                                     ({"name": "Elm", "kind": "locality", "kind_detail": "hamlet"}, [(3000, 3000)]),
+                                     ({"name": "Off The Edge", **town}, [(5000, 100)])])       # in the margin: skipped
+                + mvt_layer("roads", [({"name": "Main Street", "kind": "minor_road"}, [(1000, 1000), (1002, 1004), (1004, 1008)]),
+                                      ({"ref": "I 94", "kind": "highway"}, [(0, 2000), (4096, 2000)]),
+                                      ({"name": "Michigan Avenue", "ref": "US 12", "kind": "major_road"}, [(996, 1000), (1003, 1000)]),
+                                      ({"name": "Pere Marquette Railroad", "kind": "rail"}, [(0, 0), (10, 10)])])
+                + mvt_layer("pois", [({"name": "Wayne Public Library", "kind": "library"}, [(1001, 1001)]),
+                                     ({"name": "Wayne County", "kind": "administrative"}, [(1500, 1500)]),
+                                     ({"kind": "park"}, [(5, 5)])])                           # no name: skipped
+                + mvt_layer("buildings", [({"name": "Not Searched", "kind": "building"}, [(1, 1)])]))
+        east = (mvt_layer("places", [({"name": "Plymouth", **town}, [(2000, 2000)]),
+                                     ({"name": "Mount Clemens", **town}, [(3500, 500)])])
+                + mvt_layer("roads", [({"name": "Main Street", "kind": "minor_road"}, [(2000, 1998), (2000, 2002)]),
+                                      ({"ref": "I 94", "kind": "highway"}, [(0, 2000), (4096, 2000)])]))
+        cls.file = "testland-detailed.pmtiles"
+        cls.path = os.path.join(maps.MAPS_DIR, cls.file)
+        make_pmtiles(cls.path, 3, {(2, 2): west, (5, 2): east})
+        cls.count = places.build_index(cls.path)
+        cls.wayne = places.to_lonlat(3, 2, 2, 1000, 1000, 4096)
+        cls.plymouth = places.to_lonlat(3, 5, 2, 2000, 2000, 4096)
+
+    @classmethod
+    def tearDownClass(cls):
+        for p in (cls.path, places.db_path(cls.path)):
+            if os.path.exists(p):
+                os.remove(p)
+
+    def find(self, q, near=None):
+        return places.search(self.file, q, *(near or (None, None)))["results"]
+
+    def names(self, q, near=None):
+        return [(r["name"], r["kind"], r["near"]) for r in self.find(q, near)]
+
+    def test_reading_the_map_file(self):
+        with open(self.path, "rb") as fh:
+            h = places.read_header(fh)
+            tiles = list(places.iter_tiles(fh, h, 3))
+        self.assertEqual((h["max_zoom"], h["tile_type"]), (3, 1))
+        self.assertEqual(sorted((x, y) for x, y, _ in tiles), [(2, 2), (5, 2)])
+        self.assertEqual(self.count, 10)          # rail, the county label, nameless, out-of-tile and buildings left out
+        self.assertTrue(places.is_current(self.path))
+        self.assertEqual([places.tile_xy(1, i) for i in range(1, 5)], [(0, 0), (0, 1), (1, 1), (1, 0)])   # from the PMTiles spec
+
+    def test_a_town_is_found_and_placed_correctly(self):
+        hit = self.find("wayne")[0]
+        self.assertEqual((hit["name"], hit["kind"], hit["zoom"]), ("Wayne", "City", 12))
+        self.assertAlmostEqual(hit["lon"], self.wayne[0], places=4)
+        self.assertAlmostEqual(hit["lat"], self.wayne[1], places=4)
+        self.assertEqual(self.names("WAYNE pub"), [("Wayne Public Library", "Library", "Wayne")])
+        self.assertEqual(self.names("elm"), [("Elm", "Community", "")])
+        self.assertEqual(self.names("mt clemens")[0], ("Mount Clemens", "City", ""))
+        self.assertEqual(self.find("zzz"), [])
+        self.assertEqual(self.find("railroad") + self.find("county") + self.find("searched") + self.find("edge"), [])
+
+    def test_streets_say_which_town_and_the_nearest_comes_first(self):
+        both = [("Main Street", "Road", "Wayne"), ("Main Street", "Road", "Plymouth")]
+        self.assertEqual(self.names("main st", self.wayne), both)
+        self.assertEqual(self.names("main street", self.plymouth), both[::-1])
+        self.assertEqual(self.names("main st plymouth", self.wayne), [both[1]])      # the town can be typed too
+        self.assertEqual(self.names("michigan ave"), [("Michigan Avenue", "Road", "Wayne")])
+        self.assertEqual(self.names("us 12 michigan"), [("Michigan Avenue", "Road", "Wayne")])   # road number works too
+        self.assertEqual([n[:2] for n in self.names("i 94", self.wayne)], [("I 94", "Highway")])  # once, not per town
+
+    def test_a_map_without_an_index_says_so(self):
+        other = os.path.join(maps.MAPS_DIR, "noindex.pmtiles")
+        make_pmtiles(other, 3, {(2, 2): mvt_layer("places", [({"name": "Nowhere", "kind": "locality"}, [(1, 1)])])}, leaf=True)
+        try:
+            self.assertEqual(places.search("noindex.pmtiles", "nowhere"), {"ready": False, "results": []})
+            self.assertEqual(places.build_index(other), 1)                           # also reads a leaf directory
+            self.assertEqual([r["name"] for r in places.search("noindex.pmtiles", "now")["results"]], ["Nowhere"])
+            os.utime(other, (1, 1))                                                  # the map file changed
+            self.assertFalse(places.is_current(other))
+            maps.delete("noindex.pmtiles")
+            self.assertFalse(os.path.exists(places.db_path(other)))                  # the index goes with the map
+        finally:
+            for p in (other, places.db_path(other)):
+                if os.path.exists(p):
+                    os.remove(p)
+        for bad in ["../zim/library.xml", "x.txt", ""]:
+            with self.assertRaises(ValueError):
+                places.search(bad, "wayne")
+        with self.assertRaises(FileNotFoundError):
+            places.search("missing.pmtiles", "wayne")
+
+    def test_maps_without_names_are_found_and_queued(self):
+        junk = os.path.join(maps.MAPS_DIR, "junk.pmtiles")
+        with open(junk, "wb") as fh:
+            fh.write(b"TILES")
+        try:
+            started = maps.index_missing()
+            for j in started:
+                wait(j)
+            self.assertEqual([j.title for j in started], ["Place names for junk"])   # testland already has its index
+            self.assertEqual(started[0].state, "done")                                # a bad file is reported, not fatal
+            self.assertIn("Could not read place names", started[0].message)
+        finally:
+            os.remove(junk)
+
+    def test_search_over_the_api(self):
+        srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        base = f"http://127.0.0.1:{srv.server_port}/api/maps/search?file={self.file}"
+        try:
+            r = json.load(urllib.request.urlopen(f"{base}&q=main%20st&lon={self.plymouth[0]}&lat={self.plymouth[1]}"))
+            self.assertEqual((r["ready"], r["results"][0]["near"]), (True, "Plymouth"))
+            self.assertEqual(json.load(urllib.request.urlopen(base + "&q=w"))["results"], [])     # too short to search
+            for bad in ["/api/maps/search?file=../x.pmtiles&q=wayne", "/api/maps/search?file=missing.pmtiles&q=wayne"]:
+                with self.assertRaises(urllib.error.HTTPError):
+                    urllib.request.urlopen(f"http://127.0.0.1:{srv.server_port}{bad}")
+        finally:
+            srv.shutdown()
 
 
 class ServerTests(unittest.TestCase):
