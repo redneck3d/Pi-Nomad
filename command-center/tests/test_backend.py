@@ -113,6 +113,9 @@ FEED = b"""<?xml version="1.0" encoding="UTF-8"?>
 </feed>"""
 
 
+JSON = {"Content-Type": "application/json"}      # what our pages send with every POST
+
+
 def fake_zim(size=3_000_000):
     return b"ZIM\x04" + b"\x05\x00\x00\x00" + uuid.UUID(int=42).bytes + os.urandom(size)
 
@@ -199,6 +202,29 @@ class ZimTests(unittest.TestCase):
         finally:
             zim._catalog_get = orig
 
+    def test_catalog_entries_say_when_they_are_already_installed(self):
+        have = os.path.join(zim.ZIM_DIR, "have_2026-01.zim")
+        with open(have, "wb") as fh:
+            fh.write(fake_zim(100))
+        try:
+            got = zim._mark_installed([{"url": "https://download.kiwix.org/zim/x/have_2026-01.zim"},
+                                       {"url": "https://download.kiwix.org/zim/x/missing_2026-01.zim"},
+                                       {"url": ""}])
+        finally:
+            os.remove(have)
+        self.assertEqual([e["installed"] for e in got], [True, False, False])
+
+    def test_listing_survives_a_file_vanishing(self):
+        orig = os.path.getsize
+        os.path.getsize = lambda p: (_ for _ in ()).throw(FileNotFoundError(p))
+        try:
+            ghost = os.path.join(zim.ZIM_DIR, "ghost_2026-01.zim")
+            open(ghost, "wb").close()
+            self.assertNotIn("ghost_2026-01.zim", [z["name"] for z in zim.list_zims()])
+        finally:
+            os.path.getsize = orig
+            os.remove(ghost)
+
     def test_every_preset_is_well_formed(self):
         for p in zim.PRESETS:
             self.assertTrue(p["items"], p["id"])
@@ -235,6 +261,8 @@ class FlakyServer(http.server.BaseHTTPRequestHandler):
     def log_message(self, *a): pass
 
     def do_GET(self):
+        if self.path.endswith(".sha256"):
+            return self.send_error(404)
         FlakyServer.hits += 1
         start = 0
         rng = self.headers.get("Range")
@@ -270,7 +298,56 @@ class EndlessServer(http.server.BaseHTTPRequestHandler):
             pass
 
 
+class ChecksumServer(http.server.BaseHTTPRequestHandler):
+    """Serves a ZIM plus the .sha256 file Kiwix publishes beside it (right or wrong on demand)."""
+    data = fake_zim(200_000)
+    published = ""
+
+    def log_message(self, *a): pass
+
+    def do_GET(self):
+        body = (self.published + "  x.zim\n").encode() if self.path.endswith(".sha256") else self.data
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+
 class DownloadTests(unittest.TestCase):
+    def _fetch(self, name, published):
+        ChecksumServer.published = published
+        srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), ChecksumServer)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        orig_safe = zim._safe_filename
+        zim._safe_filename = lambda u: name
+        try:
+            job = zim.start_download(f"http://127.0.0.1:{srv.server_port}/zim/{name}", {"title": name})
+            wait(job)
+        finally:
+            zim._safe_filename = orig_safe
+            srv.shutdown()
+        return job
+
+    def test_download_with_matching_checksum_is_installed(self):
+        import hashlib
+        job = self._fetch("good_2026-01.zim", hashlib.sha256(ChecksumServer.data).hexdigest().upper())
+        self.assertEqual(job.state, "done", job.message)
+        self.assertIn("good_2026-01.zim", [z["name"] for z in zim.list_zims()])
+        zim.delete("good_2026-01.zim")
+
+    def test_damaged_download_is_thrown_away(self):
+        job = self._fetch("bad_2026-01.zim", "0" * 64)
+        self.assertEqual(job.state, "error")
+        self.assertIn("checksum", job.message)
+        left = [n for n in os.listdir(zim.ZIM_DIR) if n.startswith("bad_2026-01")]
+        self.assertEqual(left, [])                       # neither the file nor its .part stays behind
+        self.assertNotIn("bad_2026-01", open(zim.LIBRARY).read() if os.path.exists(zim.LIBRARY) else "")
+
+    def test_unusable_checksum_file_does_not_block_a_download(self):
+        job = self._fetch("nosum_2026-01.zim", "<html>not found</html>")
+        self.assertEqual(job.state, "done", job.message)
+        zim.delete("nosum_2026-01.zim")
+
     def test_cancel_removes_partial_file(self):
         srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), EndlessServer)
         threading.Thread(target=srv.serve_forever, daemon=True).start()
@@ -331,7 +408,8 @@ class MapsTests(unittest.TestCase):
         stem, bbox, z = maps.parse_target("custom", ["-83", "42", "-82", "43"], "overview")
         self.assertEqual(z, 10)
         for args in [("nowhere", None, "standard"), ("michigan", None, "huge"),
-                     ("custom", ["10", "0", "5", "1"], "standard"), ("custom", ["a", "b", "c", "d"], "standard")]:
+                     ("custom", ["10", "0", "5", "1"], "standard"), ("custom", ["a", "b", "c", "d"], "standard"),
+                     ("custom", None, "standard"), ("custom", ["1", "2"], "standard")]:
             with self.assertRaises(ValueError, msg=str(args)):
                 maps.parse_target(*args)
 
@@ -410,11 +488,41 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(json.load(self.get("/api/zim/presets"))[0]["id"], "starter")
         regions = json.load(self.get("/api/maps/regions"))
         self.assertIn("michigan", [r["id"] for r in regions["regions"]])
-        req = urllib.request.Request(self.base + "/api/zim/download", method="POST",
+        req = urllib.request.Request(self.base + "/api/zim/download", method="POST", headers=JSON,
                                      data=json.dumps({"url": "https://evil.example/x.zim"}).encode())
         with self.assertRaises(urllib.error.HTTPError) as cm:
             urllib.request.urlopen(req)
         self.assertEqual(cm.exception.code, 400)
+
+
+    def post(self, path, body=b"{}", headers=None):
+        req = urllib.request.Request(self.base + path, method="POST", data=body, headers=headers or {})
+        try:
+            return urllib.request.urlopen(req).status
+        except urllib.error.HTTPError as e:
+            return e.code
+
+    def test_posts_from_other_websites_are_refused(self):
+        # A page on another site can only send "simple" content types without asking first.
+        self.assertEqual(self.post("/api/zim/rescan"), 403)                           # urllib's default form type
+        self.assertEqual(self.post("/api/zim/rescan", headers={"Content-Type": "text/plain"}), 403)
+        self.assertEqual(self.post("/api/zim/rescan", headers={**JSON, "Origin": "http://evil.example"}), 403)
+        self.assertEqual(self.post("/api/zim/rescan", headers={**JSON, "Origin": "null"}), 403)
+        self.assertEqual(self.post("/api/auth/unlock", headers={"Content-Type": "text/plain"}), 403)
+        # Our own pages: JSON, and an Origin (when the browser sends one) that is this deck.
+        self.assertEqual(self.post("/api/zim/rescan", headers=JSON), 200)
+        self.assertEqual(self.post("/api/zim/rescan", headers={**JSON, "Origin": self.base}), 200)
+
+    def test_oversized_and_broken_requests_are_refused(self):
+        self.assertEqual(self.post("/api/zim/rescan", b"{" + b" " * app.MAX_BODY + b"}", JSON), 400)
+        self.assertEqual(self.post("/api/zim/rescan", b"not json", JSON), 400)
+        self.assertEqual(self.post("/api/zim/rescan", b"[1, 2]", JSON), 400)
+        self.assertEqual(self.post("/api/maps/extract", json.dumps({"region": "custom", "detail": "overview"}).encode(), JSON), 400)
+
+    def test_folders_are_not_listed(self):
+        os.makedirs(os.path.join(app.STATIC, "img"), exist_ok=True)
+        self.assertEqual(self.get("/img/").code, 404)
+        self.assertEqual(self.get("/").status, 200)            # a folder with an index page still opens
 
 
 class BooksTests(unittest.TestCase):
@@ -465,6 +573,15 @@ class BooksTests(unittest.TestCase):
         r = self.get("/api/books/info?file=broken.epub")
         self.assertEqual(r.code, 400)
         self.assertIn("EPUB", json.load(r)["error"])
+
+    def test_oversized_book_parts_are_refused(self):
+        orig, books.MAX_MEMBER = books.MAX_MEMBER, 10
+        try:
+            with self.assertRaises(ValueError):
+                books.epub_member("water.epub", "OEBPS/text/ch 1.xhtml")
+            self.assertEqual(self.get("/books-read/water.epub/OEBPS/text/ch%201.xhtml").code, 404)
+        finally:
+            books.MAX_MEMBER = orig
 
     def test_chapters_served_safely(self):
         r = self.get("/books-read/water.epub/OEBPS/text/ch%201.xhtml")
@@ -596,7 +713,7 @@ class AuthTests(unittest.TestCase):
 
     def call(self, path, body=None, cookie=""):
         """Returns (status, json, cookie value set by the reply or None)."""
-        req = urllib.request.Request(self.base + path, headers={"Cookie": cookie} if cookie else {},
+        req = urllib.request.Request(self.base + path, headers={**JSON, **({"Cookie": cookie} if cookie else {})},
                                      data=None if body is None else json.dumps(body).encode())
         try:
             r = urllib.request.urlopen(req)

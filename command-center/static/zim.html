@@ -37,7 +37,7 @@
 <script src="/auth.js"></script>
 <script src="/shared.js"></script>
 <script>
-let results = [], previewEntries = [];
+let results = [], previewEntries = [], installed = [];
 
 async function loadPresets() {
   const list = await api("/api/zim/presets");
@@ -53,12 +53,13 @@ async function previewPreset(id, btn) {
   btn.disabled = true; btn.textContent = "Looking up…";
   try {
     const r = await api("/api/zim/preset?id=" + encodeURIComponent(id));
-    previewEntries = r.entries;
-    const total = r.entries.reduce((a, e) => a + e.size, 0);
+    previewEntries = r.entries.filter(e => !e.installed);
+    const total = previewEntries.reduce((a, e) => a + e.size, 0);
     $("presetPreview").innerHTML = `<div class="panel"><b>${esc(r.preset)}</b>
-      <table>${r.entries.map(e => `<tr><td>${esc(e.title)} <span class="mut">${esc(e.date)}</span></td><td class="r">${fmt(e.size)}</td></tr>`).join("")}</table>
+      <table>${r.entries.map(e => `<tr><td>${esc(e.title)} <span class="mut">${esc(e.date)}</span></td><td class="r">${e.installed ? '<span class="ok">Installed</span>' : fmt(e.size)}</td></tr>`).join("")}</table>
       ${r.missing.length ? `<p class="mut">Not found in the catalog: ${r.missing.map(esc).join(", ")}</p>` : ""}
-      ${r.entries.length ? `<div class="row"><button class="go" onclick="downloadPreview()">Download all (${fmt(total)})</button></div>` : ""}</div>`;
+      ${previewEntries.length ? `<div class="row"><button class="go" onclick="downloadPreview()">Download ${previewEntries.length < r.entries.length ? "the rest" : "all"} (${fmt(total)})</button></div>`
+        : r.entries.length ? '<p class="ok">Everything in this collection is already installed.</p>' : ""}</div>`;
   } catch (e) { $("presetPreview").innerHTML = `<div class="panel err">${esc(e.message)}. Are you online?</div>`; }
   $("presetPreview").scrollIntoView({ block: "nearest" });
   btn.disabled = false; btn.textContent = "Preview";
@@ -76,18 +77,20 @@ async function search() {
     results = await api("/api/zim/search?q=" + encodeURIComponent($("q").value) + "&lang=" + $("lang").value);
     $("results").innerHTML = results.length ? `<div class="panel"><table>${results.map((e, i) => `<tr>
       <td><b>${esc(e.title)}</b> <span class="mut">${esc(e.date)}</span><br><span class="mut">${esc(e.description)}</span></td>
-      <td class="r">${fmt(e.size)}<br><button onclick="queue(results[${i}])">Download</button></td></tr>`).join("")}</table></div>`
+      <td class="r">${fmt(e.size)}<br>${e.installed ? '<span class="ok">Installed</span>' : `<button onclick="queue(results[${i}])">Download</button>`}</td></tr>`).join("")}</table></div>`
       : '<span class="mut">No matches.</span>';
   } catch (e) { $("results").innerHTML = `<div class="panel err">${esc(e.message)}. Are you online?</div>`; }
 }
 
 async function loadInstalled() {
   const d = await api("/api/status");
-  $("installed").innerHTML = d.zims.length ? `<table>${d.zims.map(z => `<tr><td>${esc(z.name)}</td><td class="r">${fmt(z.size)}</td>
-    <td class="r"><button class="del" onclick="removeZim('${esc(z.name)}')">Delete</button></td></tr>`).join("")}</table>`
+  installed = d.zims;      // buttons pass a row number, so an odd file name can never end up inside script
+  $("installed").innerHTML = d.zims.length ? `<table>${d.zims.map((z, i) => `<tr><td>${esc(z.name)}</td><td class="r">${fmt(z.size)}</td>
+    <td class="r"><button class="del" onclick="removeZim(${i})">Delete</button></td></tr>`).join("")}</table>`
     : '<span class="mut">Nothing installed yet.</span>';
 }
-async function removeZim(name) {
+async function removeZim(i) {
+  const name = installed[i].name;
   if (!confirm("Delete " + name + " from this device?")) return;
   try { await api("/api/zim/delete", { file: name }); } catch (e) { alert(e.message); }
   loadInstalled();

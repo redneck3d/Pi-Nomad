@@ -8,6 +8,11 @@ name: pi-nomad
 x-defaults: &defaults
   restart: unless-stopped
   networks: [nomad]
+  # Cap each app's log at 3 files of 5 MB. Without this the logs grow without limit
+  # and keep writing to the SD card.
+  logging:
+    driver: json-file
+    options: { max-size: "5m", max-file: "3" }
 
 services:
   # ---- Front door: Command Center dashboard (apps, service status, storage) ----

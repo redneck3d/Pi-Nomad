@@ -3,6 +3,7 @@
 Registration is done in pure Python (no kiwix-manage needed) so the paths written
 into library.xml are exactly the ones the kiwix container sees: /data/zim/<file>.
 """
+import hashlib
 import os
 import shutil
 import threading
@@ -114,8 +115,16 @@ def _catalog_get(**params):
         return parse_opds(r.read())
 
 
+def _mark_installed(entries):
+    """Tell the pages which catalog entries are already on the deck."""
+    for e in entries:
+        name = os.path.basename(urllib.parse.urlparse(e.get("url", "")).path)
+        e["installed"] = bool(name) and os.path.exists(os.path.join(ZIM_DIR, name))
+    return entries
+
+
 def search(q="", lang="eng", count=20):
-    return [e for e in _catalog_get(q=q, lang=lang, count=count) if e["name"] not in NEVER_OFFER]
+    return _mark_installed([e for e in _catalog_get(q=q, lang=lang, count=count) if e["name"] not in NEVER_OFFER])
 
 
 def resolve_preset(preset_id):
@@ -133,7 +142,7 @@ def resolve_preset(preset_id):
             found.append(hits[0])
         else:
             missing.append(f"{name} ({flavour})" if flavour else name)
-    return {"preset": p["title"], "entries": found, "missing": missing}
+    return {"preset": p["title"], "entries": _mark_installed(found), "missing": missing}
 
 
 # ---------- library.xml ----------
@@ -229,12 +238,23 @@ def rescan():
     return added
 
 
-def list_zims():
+def _sized(folder, ext):
+    """Name and size of each file with this ending; a file deleted mid-listing is skipped."""
+    out = []
     try:
-        files = sorted(f for f in os.listdir(ZIM_DIR) if f.endswith(".zim"))
+        names = sorted(f for f in os.listdir(folder) if f.endswith(ext))
     except OSError:
-        return []
-    return [{"name": f, "size": os.path.getsize(os.path.join(ZIM_DIR, f))} for f in files]
+        return out
+    for f in names:
+        try:
+            out.append({"name": f, "size": os.path.getsize(os.path.join(folder, f))})
+        except OSError:
+            pass
+    return out
+
+
+def list_zims():
+    return _sized(ZIM_DIR, ".zim")
 
 
 def delete(filename):
@@ -256,6 +276,30 @@ def _safe_filename(url):
     if not name.endswith(".zim") or name != urllib.parse.unquote(name) or name.startswith("."):
         raise ValueError("URL does not point at a .zim file")
     return name
+
+
+def _published_sha256(url):
+    """The checksum Kiwix publishes next to every ZIM (<url>.sha256), or None if unavailable."""
+    try:
+        req = urllib.request.Request(url + ".sha256", headers={"User-Agent": "pi-nomad"})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            word = r.read(200).decode("ascii", "replace").split()[0].lower()
+    except (urllib.error.URLError, OSError, ValueError, IndexError):
+        return None
+    return word if len(word) == 64 and all(c in "0123456789abcdef" for c in word) else None
+
+
+def _file_sha256(path, job):
+    """SHA-256 of a file, or None if the job is cancelled part way."""
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        while True:
+            if job.cancel.is_set():
+                return None
+            chunk = f.read(4 << 20)
+            if not chunk:
+                return h.hexdigest()
+            h.update(chunk)
 
 
 def _download(job, url, meta, retries=6):
@@ -299,6 +343,17 @@ def _download(job, url, meta, retries=6):
                 raise
             job.message = f"Connection lost, retrying ({attempt}/{retries})"
             time.sleep(min(30, 2 ** attempt))   # off-grid links drop; resume from the .part file
+    # A resumed download on a poor link is exactly where a file gets damaged, and a damaged
+    # ZIM fails later in confusing ways. No published checksum (or no internet) = not checked.
+    job.message = "Checking the download"
+    want = _published_sha256(url)
+    if want:
+        got = _file_sha256(part, job)
+        if got is None:
+            return
+        if got != want:
+            os.remove(part)
+            raise ValueError("The download was damaged on the way (checksum mismatch). Try it again.")
     job.message = "Registering"
     os.replace(part, dest)
     register(dest, meta)

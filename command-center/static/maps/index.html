@@ -64,7 +64,7 @@ function localStorageSafe(op, v) {   // remembering the last map is a nicety; ne
   const files = await (await fetch("/api/maps/list")).json();
   if (!files.length) { document.getElementById("empty").style.display = "flex"; document.getElementById("map").style.display = "none"; return; }
   const sel = document.getElementById("file");
-  sel.innerHTML = files.map(f => `<option value="${f.name}">${f.name.replace(/\.pmtiles$/, "")}</option>`).join("");
+  sel.replaceChildren(...files.map(f => new Option(f.name.replace(/\.pmtiles$/, ""), f.name)));
   const last = localStorageSafe("get");
   if (files.some(f => f.name === last)) sel.value = last;
   sel.onchange = () => show(sel.value);

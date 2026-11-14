@@ -38,14 +38,14 @@ Then open `http://<pi>.local/`.
 The card has about 96GB free after install. All 7 collections together come to about 99GB, so they won't all fit. Pick one Wikipedia: every other collection plus the 53GB full text comes to about 85GB. The 127GB Wikipedia with images doesn't fit. The workload is mostly reads, which SD cards handle well. Things to do:
 
 - Buy a high-endurance or A2-rated card from a known brand; fakes are common at this size.
-- Keep it read-mostly: Docker logs are the main steady writer, so cap them (`log-opts` in `/etc/docker/daemon.json`).
+- Keep it read-mostly: Docker logs were the main steady writer, so `compose.yaml` caps them at 15 MB per app.
 - Back up your notes (`/srv/nomad/notes`) off the card now and then, since SD cards fail without warning.
 - If you outgrow it, mount a USB SSD at `/srv/nomad` and nothing else changes.
 - The dashboard's Storage panel shows free space and what is using it.
 
 ## How content and maps work
 
-- **ZIM manager:** searches the Kiwix catalog, downloads into `/srv/nomad/zim` (resumes if Wi-Fi drops, one download at a time, refuses if the card would fill up), and adds the file to `library.xml` itself. Kiwix reloads that file automatically.
+- **ZIM manager:** searches the Kiwix catalog, downloads into `/srv/nomad/zim` (resumes if Wi-Fi drops, one download at a time, refuses if the card would fill up), checks each file against the checksum Kiwix publishes, and adds the file to `library.xml` itself. Kiwix reloads that file automatically.
 - **Files app:** browse, upload and delete anything on the data drive. After adding or deleting a ZIM there, press **Rescan folder** in the Content Manager. A note uploaded there can't be edited in Notes until the `flatnotes` container restarts.
 - **Maps:** the Protomaps planet file is far too big for the card, so the manager cuts out just your region with the `pmtiles extract` tool. The viewer (MapLibre) and Protomaps' fonts and icons are bundled into the Docker image, so maps work with no internet. You can also drop any `.pmtiles` file into `/srv/nomad/maps`.
 

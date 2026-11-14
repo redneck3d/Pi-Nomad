@@ -14,7 +14,7 @@ Owner: Mike, who runs a 3D printing and printer repair business in Wayne, Michig
   - `auth.py` optional admin PIN. No PIN set = everything open. PIN set = every POST except `/api/auth/unlock|lock` needs an unlocked session cookie (`nomad_admin`, 12 h, in memory); GETs stay open. Hash lives in the `nomad-config` volume at `/config/admin.json`. `static/auth.js` holds the `Admin` object (PIN dialogs, dashboard strip, styled with the theme's CSS variables, so the page must load `style.css`); `shared.js` `api()` prompts for the PIN on a 401 and retries. Any new endpoint that changes state must be a POST so it is covered.
   - `static/`: dashboard (`index.html`), Content Manager (`zim.html`), map viewer (`maps/index.html`), map region manager (`maps/manage.html`), bookshelf (`books/`). All share `style.css` (colours taken from the logo) and `shared.js`. `img/` holds the logo cut-outs and icons; `fonts/` bundles Outfit (OFL), so the design needs no internet.
   - `Dockerfile`: 3 stages: Go builds `pmtiles`; Node fetches maplibre-gl@5, pmtiles@4, @protomaps/basemaps@5 plus Protomaps fonts/sprites from GitHub; Python runs the app.
-  - `tests/test_backend.py`: 34 unit tests. Run: `cd command-center && python3 tests/test_backend.py`
+  - `tests/test_backend.py`: 43 unit tests. Run: `cd command-center && python3 tests/test_backend.py`
 - `install.sh` (Docker + data dirs + `docker compose up -d --build`), `hotspot.sh` (Wi-Fi AP via NetworkManager).
 - Data lives in `/srv/nomad/{zim,maps,notes,books}`. Command-center mounts `zim` and `maps` writable, the rest read-only, plus the `nomad-config` volume at `/config`.
 - `.gitattributes` forces LF line endings. Keep it: `install.sh` copied to the Pi with Windows line endings will not run.
@@ -29,6 +29,9 @@ Owner: Mike, who runs a 3D printing and printer repair business in Wayne, Michig
 - Kiwix catalog is `https://opds.library.kiwix.org/catalog/v2/entries` (the old host redirects). The `name=` filter is exact. One name can have several **flavours** (`nopic`, `mini`, `maxi`), so presets pick `(name, flavour)`. Download links are on `lb.download.kiwix.org` and end in `.zim.meta4` (strip it). Downloads are restricted to `*.download.kiwix.org`.
 - `gutenberg_en_all` is 221 GB: never offer it. Wikipedia `nopic` is ~53 GB, `mini` ~14 GB, `maxi` ~127 GB.
 - Protomaps daily builds: `https://build.protomaps.com/YYYYMMDD.pmtiles` (~139 GB planet; today's UTC build often 404s, so probe newest-first). They are compatible with `@protomaps/basemaps` 4 and 5. `pmtiles extract` has `--bbox`, `--maxzoom`, `--dry-run`. Fonts/sprites repo: `protomaps/basemaps-assets` (`fonts/`, `sprites/v4/light.*`).
+- Every POST must carry `Content-Type: application/json` and, when the browser sends an `Origin`, it must match `Host` (`_from_our_pages` in `app.py`). This stops another website from making a browser on the LAN delete or download things. `shared.js` `api()` and `auth.js` already do this; curl needs `-H "Content-Type: application/json"`.
+- Downloads are checked against the `<url>.sha256` file Kiwix publishes (verified live 2026-11-14 on `lb.download.kiwix.org`). A mismatch deletes the file; no checksum file means no check.
+- Successful GETs are not logged (dashboards poll every few seconds), and compose caps each container log at 3 x 5 MB.
 - maplibre-gl **6.x is ESM-only**; we use 5.x because the viewer loads the UMD build with a plain `<script>`.
 - Only a light admin PIN (see `auth.py`); the other apps (Files, Notes, Kiwix) are not behind it. Don't expose to the internet.
 - Files is Dufs, which serves the data folder at its root: the books folder is `http://<pi>:8083/books/`.
@@ -45,6 +48,8 @@ Since then the owner downloaded 11 libraries (14 GB, largest 3.7 GB) and a 1.1 G
 
 Combined 2026-11-12: the bookshelf, system panel and admin PIN were written on a second PC starting from the original zip, so that line of work lacked every fix and the redesign. They were merged here (three-way against the original zip). All 34 unit tests pass on the Pi inside the command-center image. The combined dashboard, system panel and empty bookshelf were viewed from a temporary preview container on the Pi (port 8090).
 
+Review fixes 2026-11-14 (cross-site POST check, body size cap, no folder listings, checksum verification, installed marks in the Content Manager, zip-bomb cap in the reader, log cap): 43 unit tests pass on the Pi; a real 21 MB ZIM downloaded and verified in an isolated preview; pages exercised in a browser.
+
 **Not yet tested:** `hotspot.sh` (it takes over wlan0, so connect Ethernet first); the 14 GB and 53 GB Wikipedias on 4 GB RAM; the bookshelf with real books; the admin PIN in a browser on the Pi; the fan reading.
 
 ## Next work, in order
@@ -54,7 +59,6 @@ Combined 2026-11-12: the bookshelf, system panel and admin PIN were written on a
 3. Dashboard start/stop buttons (discuss the risk first). The Docker socket is already root-equivalent: `:ro` on a socket does not restrict API calls.
 4. Map place search (geocoding); first-run setup wizard; auto-update option.
 5. Kolibri: find a maintained arm64 image, test it, then uncomment in `compose.yaml`.
-6. Cap Docker log size in `/etc/docker/daemon.json` (SD card wear): add to `install.sh`.
 ## Working style
 
 - Verify against real sources before claiming something works; say plainly what wasn't tested.

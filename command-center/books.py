@@ -16,6 +16,7 @@ BOOKS_DIR = os.environ.get("BOOKS_DIR", "/data/books")
 BOOK_TYPES = (".epub", ".pdf")
 IMAGE_TYPES = (".jpg", ".jpeg", ".png", ".webp", ".gif")
 XHTML = "application/xhtml+xml"
+MAX_MEMBER = 64 * 1024 ** 2     # largest single file we will unpack from an EPUB into memory
 
 _meta_cache = {}   # path -> (mtime, size, meta)
 
@@ -157,6 +158,8 @@ def epub_member(rel, member):
     with zipfile.ZipFile(resolve(rel)) as z:
         if member not in z.namelist():       # exact match only, so no path tricks
             raise FileNotFoundError(member)
+        if z.getinfo(member).file_size > MAX_MEMBER:   # a "zip bomb" must not eat the Pi's memory
+            raise ValueError("this part of the book is too large to open")
         data = z.read(member)
     ctype = mimetypes.guess_type(member)[0] or "application/octet-stream"
     if member.lower().endswith((".xhtml", ".html", ".htm", ".xml")):
@@ -220,7 +223,7 @@ def cover(rel):
             with zipfile.ZipFile(path) as z:
                 opf_path, root = _opf(z)
                 member = _cover_path(z, opf_path, root, _manifest(opf_path, root))
-                if member and member in z.namelist():
+                if member and member in z.namelist() and z.getinfo(member).file_size <= MAX_MEMBER:
                     return z.read(member), mimetypes.guess_type(member)[0] or "image/jpeg"
         except (zipfile.BadZipFile, KeyError, ValueError, ET.ParseError):
             pass

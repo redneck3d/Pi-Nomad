@@ -53,7 +53,10 @@ def parse_target(region_id, bbox, detail):
     if detail not in DETAIL:
         raise ValueError("unknown detail level")
     if region_id == "custom":
-        w, s, e, n = (float(x) for x in bbox)
+        try:
+            w, s, e, n = (float(x) for x in bbox)
+        except (TypeError, ValueError):
+            raise ValueError("Enter west, south, east and north as numbers") from None
         stem = f"custom-{w:.2f}_{s:.2f}_{e:.2f}_{n:.2f}"
     else:
         r = next((r for r in REGIONS if r["id"] == region_id), None)
@@ -117,11 +120,17 @@ def start_extract(region_id, bbox, detail):
 
 
 def list_maps():
+    out = []
     try:
-        files = sorted(f for f in os.listdir(MAPS_DIR) if f.endswith(".pmtiles"))
+        names = sorted(f for f in os.listdir(MAPS_DIR) if f.endswith(".pmtiles"))
     except OSError:
-        return []
-    return [{"name": f, "size": os.path.getsize(os.path.join(MAPS_DIR, f))} for f in files]
+        return out
+    for f in names:
+        try:
+            out.append({"name": f, "size": os.path.getsize(os.path.join(MAPS_DIR, f))})
+        except OSError:              # deleted while we were listing
+            pass
+    return out
 
 
 def delete(filename):

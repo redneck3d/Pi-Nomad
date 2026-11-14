@@ -44,6 +44,7 @@
 <script src="/auth.js"></script>
 <script src="/shared.js"></script>
 <script>
+let installedMaps = [];
 function target() {
   const region = $("region").value;
   const bbox = region === "custom" ? [$("w").value, $("s").value, $("e").value, $("n").value] : null;
@@ -66,11 +67,13 @@ $("go").onclick = async () => {
 };
 async function loadInstalled() {
   const list = await api("/api/maps/list");
-  $("installed").innerHTML = list.length ? `<table>${list.map(m => `<tr><td>${esc(m.name)}</td><td class="r">${fmt(m.size)}</td>
-    <td class="r"><a href="/maps/">View</a> <button class="del" onclick="removeMap('${esc(m.name)}')">Delete</button></td></tr>`).join("")}</table>`
+  installedMaps = list;
+  $("installed").innerHTML = list.length ? `<table>${list.map((m, i) => `<tr><td>${esc(m.name)}</td><td class="r">${fmt(m.size)}</td>
+    <td class="r"><a href="/maps/">View</a> <button class="del" onclick="removeMap(${i})">Delete</button></td></tr>`).join("")}</table>`
     : '<span class="mut">No maps yet.</span>';
 }
-async function removeMap(name) {
+async function removeMap(i) {
+  const name = installedMaps[i].name;
   if (!confirm("Delete " + name + " from this device?")) return;
   try { await api("/api/maps/delete", { file: name }); } catch (e) { alert(e.message); }
   loadInstalled();

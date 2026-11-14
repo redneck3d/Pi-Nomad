@@ -26,6 +26,7 @@ PROJECT = os.environ.get("COMPOSE_PROJECT", "pi-nomad")
 DOCKER_SOCK = os.environ.get("DOCKER_SOCK", "/var/run/docker.sock")
 STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 FOLDERS = ["zim", "maps", "notes", "books"]
+MAX_BODY = 64 * 1024     # our JSON requests are tiny; refuse anything that is not
 
 _cache = {"t": 0.0, "sizes": {}}
 
@@ -133,13 +134,41 @@ class Handler(SimpleHTTPRequestHandler):
 
     def _body(self):
         n = int(self.headers.get("Content-Length") or 0)
+        if not 0 <= n <= MAX_BODY:
+            raise ValueError("request too large")
         return json.loads(self.rfile.read(n) or b"{}") if n else {}
+
+    def _from_our_pages(self):
+        """False for a POST that some other website could make a browser send to the deck.
+
+        Our pages always post JSON. A web page on another site cannot send that content type
+        across sites without asking first (a CORS preflight, which we never grant), and when a
+        browser does say where a request came from, it has to be this deck.
+        """
+        if self.headers.get_content_type() != "application/json":
+            return False
+        origin = self.headers.get("Origin")
+        if origin is None:
+            return True
+        return urllib.parse.urlparse(origin).netloc == self.headers.get("Host")
+
+    def list_directory(self, path):
+        """No folder listings: only real files are served."""
+        self.send_error(404)
+        return None
+
+    def log_request(self, code="-", size="-"):
+        # Open dashboards poll every few seconds. Logging each successful read would
+        # write to the SD card all day, so only changes and failures are logged.
+        if self.command in ("GET", "HEAD") and str(code)[:1] in ("2", "3"):
+            return
+        super().log_request(code, size)
 
     def _guard(self, fn):
         """Run a handler; turn expected failures into JSON errors."""
         try:
             self._json(fn())
-        except (ValueError, KeyError) as e:
+        except (ValueError, KeyError, TypeError) as e:
             self._json({"error": str(e)}, 400)
         except FileNotFoundError:
             self._json({"error": "not found"}, 404)
@@ -288,10 +317,12 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         p = urllib.parse.urlparse(self.path).path
+        if not self._from_our_pages():
+            return self._json({"error": "This request did not come from the Pi-Nomad pages"}, 403)
         try:
             b = self._body()
-        except json.JSONDecodeError:
-            return self._json({"error": "bad JSON"}, 400)
+        except ValueError:                      # includes bad JSON
+            return self._json({"error": "bad request"}, 400)
         if not isinstance(b, dict):
             return self._json({"error": "bad JSON"}, 400)
         if p.startswith("/api/auth/"):
