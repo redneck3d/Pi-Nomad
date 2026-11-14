@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Search - Pi-Nomad</title><meta name="theme-color" content="#141c2d">
+<link rel="icon" type="image/png" href="/img/favicon.png"><link rel="apple-touch-icon" href="/img/apple-touch-icon.png"><link rel="stylesheet" href="/style.css">
+<style>
+  .hit { display:block; padding:.8rem 0; border-top:1px solid var(--line); color:inherit; text-decoration:none; }
+  .hit:first-child { border-top:0; padding-top:.2rem; } .hit:last-child { padding-bottom:.2rem; }
+  .hit b.t { display:block; color:var(--teal); font-family:var(--display); font-size:1.08rem; font-weight:600; overflow-wrap:anywhere; }
+  .hit:hover b.t { text-decoration:underline; }
+  .hit .from { display:inline-block; margin:.15rem 0; color:var(--amber); font-size:.82rem; font-weight:600; }
+  .hit p { margin:.15rem 0 0; color:var(--mut); font-size:.93rem; overflow-wrap:anywhere; }
+  .hit mark { background:none; color:var(--txt); font-weight:600; }
+  .count { color:var(--mut); font-family:var(--body); font-size:.88rem; font-weight:400; }
+</style></head>
+<body>
+<nav class="top"><a class="brand" href="/"><img src="/img/mark.png" alt="" width="192" height="145"><span>Pi-<b>Nomad</b></span></a>
+  <div class="links"><a href="/">Dashboard</a><a aria-current="page" href="/search.html">Search</a><a href="/books/">Bookshelf</a><a href="/zim.html">Content</a><a href="/maps/manage.html">Map regions</a><a href="/maps/">Open map</a><a href="/backup.html">Backup</a></div></nav>
+<hr class="bar-line">
+<div class="wrap">
+  <div class="page-head">
+    <h1>Search</h1>
+    <p class="sub">Looks through every library, your notes and your book titles at once.</p>
+  </div>
+  <form class="searchbar" id="form" role="search">
+    <input id="q" name="q" type="search" placeholder="Search everything on this deck" aria-label="Search everything on this deck" autocomplete="off" maxlength="200">
+    <button class="go">Search</button>
+  </form>
+  <div id="out"></div>
+</div>
+<script src="/shared.js"></script>
+<script>
+const host = location.hostname;
+// Bold the searched words inside text that has already been made safe.
+function mark(text, q) {
+  const words = q.split(/\s+/).filter(Boolean).map(w => esc(w).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  const safe = esc(text);
+  return words.length ? safe.replace(new RegExp("(" + words.join("|") + ")", "gi"), "<mark>$1</mark>") : safe;
+}
+const hit = (href, title, from, text, q) => `<a class="hit" href="${esc(href)}"><b class="t">${esc(title)}</b>
+  ${from ? `<span class="from">${esc(from)}</span>` : ""}${text ? `<p>${mark(text, q)}</p>` : ""}</a>`;
+const section = (name, count, body) => `<h3>${name} <span class="count">${count}</span></h3><div class="panel">${body}</div>`;
+
+async function run(q) {
+  if (!q) { $("out").innerHTML = ""; return; }
+  $("out").innerHTML = '<p class="mut" style="margin-top:1.2rem">Searching&hellip;</p>';
+  let r;
+  try { r = await api("/api/search?q=" + encodeURIComponent(q)); }
+  catch (e) { $("out").innerHTML = `<div class="panel err" style="margin-top:1.2rem">${esc(e.message)}</div>`; return; }
+  if ($("q").value.trim() !== q) return;                 // a newer search has started
+  const lib = r.libraries, parts = [];
+  if (r.notes.length) parts.push(section("Your notes", r.notes.length, r.notes.map(n =>
+    hit(`http://${host}:8081/note/${encodeURIComponent(n.title)}`, n.title, "", n.snippet, r.q)).join("")));
+  if (r.books.length) parts.push(section("Your books", r.books.length, r.books.map(b =>
+    hit(b.type === "pdf" ? "/books-data/" + b.file.split("/").map(encodeURIComponent).join("/") : "/books/read.html?book=" + encodeURIComponent(b.file),
+        b.title, [b.author, b.type.toUpperCase()].filter(Boolean).join(" · "), "", r.q)).join("")));
+  if (lib.results.length) parts.push(section("Libraries", lib.total > lib.results.length ? `first ${lib.results.length} of about ${lib.total.toLocaleString()}` : lib.results.length,
+    lib.results.map(x => hit(`http://${host}:8080${x.path}`, x.title, x.library, x.snippet, r.q)).join("")
+    + (lib.total > lib.results.length ? `<a class="hit" href="http://${host}:8080/search?pattern=${encodeURIComponent(r.q)}"><b class="t">See all results in the Library</b></a>` : "")));
+  if (lib.error) parts.push(`<p class="err">${esc(lib.error)}. Library results are missing.</p>`);
+  $("out").innerHTML = parts.join("") || `<div class="panel mut" style="margin-top:1.2rem">Nothing found for <b>${esc(r.q)}</b>. Try fewer or different words.</div>`;
+}
+$("form").onsubmit = e => {
+  e.preventDefault();
+  const q = $("q").value.trim();
+  history.replaceState(null, "", q ? "?q=" + encodeURIComponent(q) : location.pathname);
+  run(q);
+};
+const first = new URLSearchParams(location.search).get("q") || "";
+$("q").value = first;
+if (first.trim()) run(first.trim()); else $("q").focus();
+</script>
+</body></html>

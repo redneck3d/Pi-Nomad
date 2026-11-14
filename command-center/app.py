@@ -19,6 +19,7 @@ import backup
 import books
 import jobs
 import maps
+import search
 import system
 import zim
 
@@ -312,6 +313,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self._json({"drives": backup.list_drives(), "sizes": backup.sizes()})
         if p == "/api/backup/download":
             return self._backup_zip()
+        if p == "/api/search":
+            return self._guard(lambda: search.everything(q.get("q", "")))
         if p == "/api/status":
             return self._json({"services": service_states(), "storage": storage(), "zims": zim.list_zims()})
         if p == "/api/auth":

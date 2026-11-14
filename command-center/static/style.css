@@ -75,6 +75,10 @@ a.btn { display:inline-flex; align-items:center; min-height:44px; padding:.55rem
 a.btn:hover { background:#f4b65a; }
 .row { display:flex; gap:.6rem; flex-wrap:wrap; align-items:center; }
 
+.searchbar { display:flex; gap:.5rem; max-width:40rem; }
+.searchbar input { flex:1; min-width:0; }
+.hero .searchbar { margin-top:1.4rem; }
+
 /* ---------- progress and messages ---------- */
 .prog { height:9px; border-radius:5px; background:var(--bg-deep); overflow:hidden; margin:.55rem 0 .3rem; }
 .prog i { display:block; height:100%; background:linear-gradient(90deg, var(--teal), var(--amber)); transition:width .4s; }
@@ -149,6 +153,7 @@ a.tool.off { opacity:.62; }
   .wrap { padding-bottom:2.5rem; }
   .hero-in { grid-template-columns:1fr; justify-items:center; text-align:center; padding:1.6rem 16px 1.8rem; gap:1rem; }
   .stats { justify-content:center; }
+  .hero .searchbar { margin-left:auto; margin-right:auto; text-align:left; }
   .tool .state span { display:none; }
 }
 @media (prefers-reduced-motion:reduce) { * { transition:none !important; } a.tile:hover { transform:none; } }

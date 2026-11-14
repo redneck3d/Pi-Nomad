@@ -20,7 +20,7 @@ os.makedirs(os.environ["ZIM_DIR"]); os.makedirs(os.environ["MAPS_DIR"]); os.make
 
 import zipfile  # noqa: E402
 
-import app, auth, backup, books, jobs, maps, system, zim  # noqa: E402
+import app, auth, backup, books, jobs, maps, search, system, zim  # noqa: E402
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
 CH = '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>{0}</title></head><body><h1>{0}</h1><p>Text of {0}.</p>{1}</body></html>'
@@ -690,6 +690,130 @@ class SystemTests(unittest.TestCase):
         s = system.snapshot()
         self.assertEqual((s["temp_c"], s["fan_rpm"], s["memory"], s["disk"], s["uptime_s"]), (None, None, None, None, None))
         self.assertEqual((s["cpu"]["percent"], s["cpu"]["load"], s["warnings"]), (None, None, []))
+
+
+# Shape copied from kiwix-serve 3.8.2 on the Pi (/search?pattern=water+filter&format=xml), shortened.
+KIWIX_FEED = """<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Search: water filter</title>
+    <opensearch:totalResults>3,000</opensearch:totalResults>
+    <opensearch:startIndex>0</opensearch:startIndex>
+    <item>
+      <title>Ceramic water filter</title>
+      <link>/content/wikipedia_en_medicine_nopic_2026-10/Ceramic_water_filter</link>
+        <description>...<b>water</b> <b>filter</b> A Victorian ceramic <b>water</b> <b>filter</b> Ceramic filters &amp; more......</description>
+        <book>
+          <title>WikiMed Medical Encyclopedia (nopic)</title>
+        </book>
+        <wordCount>1,401</wordCount>
+    </item>
+    <item>
+      <title>Somewhere else</title>
+      <link>//evil.example/page</link>
+      <description>a link that does not stay on the Library app</description>
+    </item>
+  </channel>
+</rss>"""
+
+
+class FakeKiwix(http.server.BaseHTTPRequestHandler):
+    mode = "ok"       # ok | mixed (refuses until the language filter is added) | empty | broken
+    seen = []
+
+    def log_message(self, *a): pass
+
+    def do_GET(self):
+        FakeKiwix.seen.append(self.path)
+        if self.mode == "empty" or (self.mode == "mixed" and "books.filter.lang=eng" not in self.path):
+            return self.send_error(400)
+        if self.mode == "broken":
+            return self.send_error(500)
+        body = KIWIX_FEED.encode()
+        self.send_response(200)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+
+class SearchTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.kiwix = http.server.ThreadingHTTPServer(("127.0.0.1", 0), FakeKiwix)
+        threading.Thread(target=cls.kiwix.serve_forever, daemon=True).start()
+        cls.srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
+        threading.Thread(target=cls.srv.serve_forever, daemon=True).start()
+        cls.root = tempfile.mkdtemp(dir=TMP)
+        for rel, text in {"Water Filter Build.md": "# Parts\nSand, gravel and **charcoal** in a bucket.",
+                          "Shop/Printer fixes.md": "Clogged nozzle? Do a cold pull. Check the water cooling filter too.",
+                          "Groceries.md": "eggs, coffee",
+                          ".flatnotes/index.md": "water filter (search index, never shown)",
+                          "attachments/water filter.md": "an attachment, not a note",
+                          "photo.jpg": "water filter"}.items():
+            p = os.path.join(cls.root, rel)
+            os.makedirs(os.path.dirname(p), exist_ok=True)
+            with open(p, "w") as fh:
+                fh.write(text)
+        cls.saved = (search.KIWIX_URL, search.NOTES_DIR, books.list_books)
+        search.KIWIX_URL, search.NOTES_DIR = f"http://127.0.0.1:{cls.kiwix.server_port}", cls.root
+        books.list_books = lambda: [
+            {"file": "survival/Water Purification.pdf", "type": "pdf", "title": "Water Purification", "author": "", "size": 1},
+            {"file": "knots.epub", "type": "epub", "title": "Knots", "author": "A. Filter", "size": 1}]
+
+    @classmethod
+    def tearDownClass(cls):
+        search.KIWIX_URL, search.NOTES_DIR, books.list_books = cls.saved
+        cls.kiwix.shutdown(); cls.srv.shutdown()
+
+    def setUp(self):
+        FakeKiwix.mode, FakeKiwix.seen = "ok", []
+
+    def test_library_results_are_tidied(self):
+        r = search.libraries("water filter")
+        self.assertEqual(r["total"], 3000)
+        self.assertEqual(len(r["results"]), 1)                       # the off-site link is dropped
+        hit = r["results"][0]
+        self.assertEqual((hit["title"], hit["library"]), ("Ceramic water filter", "WikiMed Medical Encyclopedia (nopic)"))
+        self.assertEqual(hit["path"], "/content/wikipedia_en_medicine_nopic_2026-10/Ceramic_water_filter")
+        self.assertEqual(hit["snippet"], "water filter A Victorian ceramic water filter Ceramic filters & more")
+        self.assertIn("pattern=water+filter", FakeKiwix.seen[0])
+
+    def test_library_search_problems_do_not_break_the_page(self):
+        FakeKiwix.mode = "mixed"                                     # libraries in two languages
+        self.assertEqual(len(search.libraries("water")["results"]), 1)
+        self.assertEqual(len(FakeKiwix.seen), 2)
+        FakeKiwix.mode = "empty"                                     # nothing installed: no results, no alarm
+        self.assertEqual(search.libraries("water"), {"total": 0, "results": [], "error": ""})
+        FakeKiwix.mode = "broken"
+        self.assertIn("error 500", search.libraries("water")["error"])
+        search.KIWIX_URL, keep = "http://127.0.0.1:9", search.KIWIX_URL
+        try:
+            self.assertEqual(search.libraries("water")["error"], "The Library app is not answering")
+        finally:
+            search.KIWIX_URL = keep
+
+    def test_notes_are_searched_by_title_and_text(self):
+        got = search.notes("WATER filter")
+        self.assertEqual([n["title"] for n in got], ["Water Filter Build", "Printer fixes"])    # title match first
+        self.assertEqual(got[0]["snippet"], "Parts Sand, gravel and charcoal in a bucket.")      # markdown marks removed
+        self.assertIn("water cooling filter", got[1]["snippet"])
+        self.assertEqual([n["title"] for n in search.notes("charcoal bucket")], ["Water Filter Build"])
+        self.assertEqual(search.notes("unicorn"), [])
+
+    def test_books_match_on_title_author_and_file(self):
+        self.assertEqual([b["title"] for b in search.shelf("water")], ["Water Purification"])
+        self.assertEqual([b["title"] for b in search.shelf("filter")], ["Knots"])
+        self.assertEqual([b["title"] for b in search.shelf("survival")], ["Water Purification"])
+
+    def test_one_request_searches_everything(self):
+        base = f"http://127.0.0.1:{self.srv.server_port}"
+        r = json.load(urllib.request.urlopen(base + "/api/search?q=%20water%20%20filter%20"))
+        self.assertEqual(r["q"], "water filter")
+        self.assertEqual((len(r["notes"]), len(r["books"]), len(r["libraries"]["results"])), (2, 0, 1))
+        for bad in ["", "%20%20", "x" * 201]:
+            with self.assertRaises(urllib.error.HTTPError) as cm:
+                urllib.request.urlopen(base + "/api/search?q=" + bad)
+            self.assertEqual(cm.exception.code, 400)
 
 
 class BackupTests(unittest.TestCase):

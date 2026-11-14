@@ -49,6 +49,10 @@ The card has about 96GB free after install. All 7 collections together come to a
 - **Files app:** browse, upload and delete anything on the data drive. After adding or deleting a ZIM there, press **Rescan folder** in the Content Manager. A note uploaded there can't be edited in Notes until the `flatnotes` container restarts.
 - **Maps:** the Protomaps planet file is far too big for the card, so the manager cuts out just your region with the `pmtiles extract` tool. The viewer (MapLibre) and Protomaps' fonts and icons are bundled into the Docker image, so maps work with no internet. You can also drop any `.pmtiles` file into `/srv/nomad/maps`.
 
+## Search
+
+The search box on the dashboard looks through every library, your notes and your book titles at once. Library results come from Kiwix, so anything you install is searchable straight away. The text inside your own books is not searched, only titles and authors.
+
 ## Backup
 
 The Backup page copies your notes and books to a USB drive plugged into the Pi, into a dated folder inside `pi-nomad-backup`. It can also download your notes as a zip to the phone or PC you are using. Libraries and maps are not copied because they can be downloaded again; every backup includes `installed-content.txt`, a list of them. To restore, upload the `notes` and `books` folders back through the Files app. USB drives are found through the Pi desktop, which mounts them automatically while it is logged in.
