@@ -6,7 +6,7 @@ Owner: Mike, who runs a 3D printing and printer repair business in Wayne, Michig
 
 ## Layout
 
-- `compose.yaml`: stack: `command-center` (built from `./command-center`), `kiwix`, `flatnotes`, `cyberchef`, `files` (Dufs). Kolibri is commented out (no arm64 image picked yet).
+- `compose.yaml`: stack: `command-center` (built from `./command-center`), `kiwix`, `flatnotes`, `cyberchef`, `files` (Dufs), `kolibri` (built from `./kolibri`).
 - `command-center/`: Python **stdlib-only** web app on port 80.
   - `app.py` router and Range-capable `/maps-data/` file server; `zim.py` Kiwix catalog search, resumable downloads, `library.xml` writer; `maps.py` Protomaps region extracts via the `pmtiles` CLI; `jobs.py` background job registry.
   - `books.py` bookshelf: lists EPUB/PDF under `/data/books` (read-only mount), serves EPUB chapters straight out of the zip at `/books-read/<book>.epub/<member>` with a no-scripts CSP, PDFs at `/books-data/`. Pages: `static/books/index.html`, `static/books/read.html`. Tested with generated EPUB 2/3 files only, not real books yet.
@@ -21,8 +21,9 @@ Owner: Mike, who runs a 3D printing and printer repair business in Wayne, Michig
   - `static/`: dashboard (`index.html`), Content Manager (`zim.html`), map viewer (`maps/index.html`), map region manager (`maps/manage.html`), bookshelf (`books/`). All share `style.css` (colours taken from the logo) and `shared.js`. `img/` holds the logo cut-outs and icons; `fonts/` bundles Outfit (OFL), so the design needs no internet.
   - `Dockerfile`: 3 stages: Go builds `pmtiles`; Node fetches maplibre-gl@5, pmtiles@4, @protomaps/basemaps@5 plus Protomaps fonts/sprites from GitHub; Python runs the app.
   - `tests/test_backend.py`: 67 unit tests. Run: `cd command-center && python3 tests/test_backend.py`
+- `kolibri/Dockerfile`: Kolibri 0.19.5 from PyPI on `python:3.12-slim` (plus `iproute2`). There is no current upstream Docker image (Docker Hub ones are 6-7 years old). Data in `/srv/nomad/kolibri`. Ports 8085 (app) and 8086 (zipped interactive lessons) must be published with unchanged numbers. Kolibri sends `X-Frame-Options: DENY`, so its tile opens in a new tab and it is not in `app.html`. It has its own accounts and first-run setup, which the owner does himself. Measured on the Pi 2026-11-14 in a throwaway container: 60 s build, 4 s start, about 130 MB resident idle, image about 700 MB. Not measured: memory with lessons loaded and learners active.
 - `install.sh` (Docker + data dirs + `docker compose up -d --build`), `hotspot.sh` (Wi-Fi AP via NetworkManager).
-- Data lives in `/srv/nomad/{zim,maps,notes,books}`. Command-center mounts `zim` and `maps` writable, the rest read-only, plus the `nomad-config` volume at `/config`.
+- Data lives in `/srv/nomad/{zim,maps,notes,books,kolibri}`. Command-center mounts `zim` and `maps` writable, the rest read-only, plus the `nomad-config` volume at `/config`.
 - `.gitattributes` forces LF line endings. Keep it: `install.sh` copied to the Pi with Windows line endings will not run.
 
 ## Hard constraints (verified 2026-11-08, don't break these)
@@ -79,7 +80,6 @@ App start/stop 2026-11-14: unit-tested against a stand-in Docker socket; from a 
 1. Finish the Pi checks above: hotspot after a reboot.
 2. Meshtastic (researched 2026-11-09, nothing built): MeshMonitor plus its serial bridge for USB radios; open questions are offline map tiles and memory use.
 3. First-run setup wizard; auto-update option.
-4. Kolibri: find a maintained arm64 image, test it, then uncomment in `compose.yaml`.
 ## Working style
 
 - Verify against real sources before claiming something works; say plainly what wasn't tested.

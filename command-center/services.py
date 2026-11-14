@@ -2,7 +2,7 @@
 
 This talks to Docker over its socket. That socket can do anything on the Pi, so this module
 is deliberately narrow: it only ever touches containers of this compose project, only the
-four apps named in CONTROLLABLE, and only with the three actions in ACTIONS. The Command
+apps named in CONTROLLABLE, and only with the three actions in ACTIONS. The Command
 Center itself is not in the list: stopping it would take the buttons away.
 """
 import http.client
@@ -13,7 +13,8 @@ import urllib.parse
 
 PROJECT = os.environ.get("COMPOSE_PROJECT", "pi-nomad")
 DOCKER_SOCK = os.environ.get("DOCKER_SOCK", "/var/run/docker.sock")
-CONTROLLABLE = {"kiwix": "Information Library", "flatnotes": "Notes", "cyberchef": "Data Tools", "files": "Files"}
+CONTROLLABLE = {"kiwix": "Information Library", "flatnotes": "Notes", "cyberchef": "Data Tools", "files": "Files",
+                "kolibri": "Education"}
 ACTIONS = ("start", "stop", "restart")
 STOP_WAIT = 10          # seconds Docker gives an app to shut down cleanly before ending it
 

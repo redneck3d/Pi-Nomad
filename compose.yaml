@@ -1,7 +1,6 @@
 # Pi-NOMAD: offline-first knowledge server for Raspberry Pi 5 (arm64)
 # Modeled on Project NOMAD, minus the AI stack.
 # Every service is a plain container; the Command Center at :80 links to all of them.
-# NOTE: image names/tags marked (verify) must be confirmed to ship arm64 builds.
 
 name: pi-nomad
 
@@ -85,7 +84,7 @@ services:
     # Runs as root, which it needs because /srv/nomad and all downloads are root-owned.
     image: sigoden/dufs:v0.47.0
     # --hidden only trims the listing: the app's own bookkeeping files stay out of the way.
-    command: ["--allow-all", "--hidden", "library.xml,library.xml.tmp,*.part,.flatnotes,*.places.db,*.places.db.tmp", "/srv"]
+    command: ["--allow-all", "--hidden", "library.xml,library.xml.tmp,*.part,.flatnotes,*.places.db,*.places.db.tmp,kolibri", "/srv"]
     ports: ["8083:5000"]
     volumes:
       - ${NOMAD_DATA:-/srv/nomad}:/srv
@@ -94,13 +93,16 @@ services:
   # No separate service: the Command Center serves the viewer at /maps/ and the
   # .pmtiles files (with Range support) from /maps-data/.
 
-  # ---- Education (Kolibri / Khan Academy) ----
-  # Intentionally disabled until a maintained arm64 image is picked (verify).
-  # kolibri:
-  #   <<: *defaults
-  #   image: <TBD>
-  #   ports: ["8085:8080"]
-  #   volumes: ["${NOMAD_DATA:-/srv/nomad}/kolibri:/root/.kolibri"]
+  # ---- Education (Kolibri: Khan Academy and other offline lessons) ----
+  kolibri:
+    <<: *defaults
+    # No current upstream image exists, so ./kolibri builds one from the Python package (pinned there).
+    build: ./kolibri
+    # Both ports must keep their numbers: Kolibri tells the browser to fetch interactive lessons
+    # from the second one. It has its own accounts; the first visit runs its setup.
+    ports: ["8085:8085", "8086:8086"]
+    volumes:
+      - ${NOMAD_DATA:-/srv/nomad}/kolibri:/kolibri
 
 networks:
   nomad:

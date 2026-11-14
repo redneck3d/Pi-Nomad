@@ -1192,7 +1192,7 @@ class ServiceControlTests(unittest.TestCase):
     def setUp(self):
         FakeDocker.calls, FakeDocker.refuse = [], False
         FakeDocker.containers = {"command-center": "running", "kiwix": "running", "flatnotes": "running",
-                                 "cyberchef": "exited", "files": "running"}
+                                 "cyberchef": "exited", "files": "running", "kolibri": "running"}
 
     def post(self, service, action):
         req = urllib.request.Request(f"http://127.0.0.1:{self.srv.server_port}/api/services", headers=JSON,
@@ -1214,9 +1214,10 @@ class ServiceControlTests(unittest.TestCase):
         self.assertEqual(self.post("cyberchef", "start")[1]["state"], "running")
         self.assertEqual(self.post("files", "restart")[1]["state"], "running")
         self.assertEqual(self.post("flatnotes", "start")[0], 200)                 # already running: fine, not an error
+        self.assertEqual(self.post("kolibri", "restart")[1]["state"], "running")
         self.assertEqual(FakeDocker.calls, ["/containers/id-kiwix/stop?t=10", "/containers/id-kiwix/start",
                                             "/containers/id-cyberchef/start", "/containers/id-files/restart?t=10",
-                                            "/containers/id-flatnotes/start"])
+                                            "/containers/id-flatnotes/start", "/containers/id-kolibri/restart?t=10"])
 
     def test_nothing_else_can_be_touched(self):
         for service, action in [("command-center", "stop"), ("command-center", "restart"), ("kiwix", "kill"),

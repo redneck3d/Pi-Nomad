@@ -26,7 +26,7 @@ import zim
 
 DATA = os.environ.get("NOMAD_DATA", "/data")
 STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
-FOLDERS = ["zim", "maps", "notes", "books"]
+FOLDERS = ["zim", "maps", "notes", "books", "kolibri"]
 MAX_BODY = 64 * 1024     # our JSON requests are tiny; refuse anything that is not
 
 _cache = {"t": 0.0, "sizes": {}}

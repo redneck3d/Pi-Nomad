@@ -12,7 +12,7 @@ An offline-first knowledge server for a Raspberry Pi 5, modeled on [Project NOMA
 | Supply Depot / file tools | `files` ([Dufs](https://github.com/sigoden/dufs)) | Working config |
 | Offline maps (ProtoMaps) | Viewer at `/maps/`, region manager at `/maps/manage.html` | Tested in Docker |
 | Content downloads (ZIM manager) | `/zim.html`: collections, catalog search, resumable downloads, delete | Tested in Docker |
-| Education (Kolibri) | commented out in compose | Need arm64 image |
+| Education (Kolibri) | `kolibri`, built from the Kolibri Python package (no current upstream image) | Runs on the Pi; lesson import not yet tried |
 | Your own books (not in NOMAD) | Bookshelf at `/books/`: lists EPUB and PDF files from `/srv/nomad/books`, built-in EPUB reader | Tested on the Pi with 30 real books |
 | System info | System panel on the dashboard: temperature, fan, processor, memory, uptime, drive writes, clock check, power and heat warnings | Checked on the real Pi except the fan reading (no fan fitted) |
 | Admin lock (not in NOMAD) | Optional admin PIN: reading stays open, downloads, deletes, backup and power need the PIN | Tested on the Pi |
@@ -63,6 +63,10 @@ The dashboard has Restart and Shut down buttons under the system readings. Use S
 ## Search
 
 The search box on the dashboard looks through every library, your notes and your book titles at once. Library results come from Kiwix, so anything you install is searchable straight away. The text inside your own books is not searched, only titles and authors.
+
+## Education (Kolibri)
+
+The Education tile opens Kolibri, an offline learning platform with courses such as Khan Academy. It has its own accounts: the first time you open it, it walks you through a short setup and has you create an admin user. Lessons are added from inside Kolibri, by download while you have internet or from a USB drive, and they are large (tens of GB for all of Khan Academy), so pick subjects. It opens in its own browser tab because it does not allow being shown under the Pi-Nomad bar. Its data lives in `/srv/nomad/kolibri` and is not part of the USB backup.
 
 ## Finding places on the map
 
@@ -120,7 +124,6 @@ Review fixes, Backup, Search, and the Shut down and Restart buttons were each te
 
 1. Finish the Pi checks: hotspot, real books, admin PIN.
 2. Command Center: updates.
-4. Kolibri: pick and test an arm64 image.
 
 ## Notes
 

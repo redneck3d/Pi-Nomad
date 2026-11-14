@@ -19,7 +19,7 @@ fi
 systemctl enable --now docker
 
 echo "==> Creating data directories in $NOMAD_DATA"
-mkdir -p "$NOMAD_DATA"/{zim,notes,maps,books}
+mkdir -p "$NOMAD_DATA"/{zim,notes,maps,books,kolibri}
 if [[ ! -f "$NOMAD_DATA/zim/library.xml" ]]; then
   cat > "$NOMAD_DATA/zim/library.xml" <<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -71,7 +71,7 @@ touch "$POWER_DIR/helper-installed"
 
 echo "==> Installing stack to $INSTALL_DIR"
 mkdir -p "$INSTALL_DIR"
-cp -r "$SRC_DIR/compose.yaml" "$SRC_DIR/command-center" "$INSTALL_DIR/"
+cp -r "$SRC_DIR/compose.yaml" "$SRC_DIR/command-center" "$SRC_DIR/kolibri" "$INSTALL_DIR/"
 echo "NOMAD_DATA=$NOMAD_DATA" > "$INSTALL_DIR/.env"
 
 echo "==> Starting services"
