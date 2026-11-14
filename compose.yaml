@@ -32,6 +32,12 @@ services:
       - ${NOMAD_DATA:-/srv/nomad}/maps:/data/maps
       # Admin PIN hash. A named volume, kept out of /srv/nomad so the Files app cannot touch it.
       - nomad-config:/config
+      # USB drives for the Backup page. The Pi's desktop mounts a plugged-in drive under /media;
+      # "rslave" makes drives plugged in later show up inside the container too.
+      - type: bind
+        source: /media
+        target: /media
+        bind: { propagation: rslave }
       - /var/run/docker.sock:/var/run/docker.sock:ro   # read-only status; start/stop comes later
 
   # ---- Information Library (Wikipedia, medical, survival ZIMs) ----

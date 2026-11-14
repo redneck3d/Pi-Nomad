@@ -20,7 +20,7 @@ os.makedirs(os.environ["ZIM_DIR"]); os.makedirs(os.environ["MAPS_DIR"]); os.make
 
 import zipfile  # noqa: E402
 
-import app, auth, books, jobs, maps, system, zim  # noqa: E402
+import app, auth, backup, books, jobs, maps, system, zim  # noqa: E402
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
 CH = '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>{0}</title></head><body><h1>{0}</h1><p>Text of {0}.</p>{1}</body></html>'
@@ -692,6 +692,123 @@ class SystemTests(unittest.TestCase):
         self.assertEqual((s["cpu"]["percent"], s["cpu"]["load"], s["warnings"]), (None, None, []))
 
 
+class BackupTests(unittest.TestCase):
+    """A USB drive is a folder listed in a fake /proc/mounts, the way the Pi's desktop mounts one."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(dir=TMP)
+        self.data, self.media = os.path.join(self.root, "data"), os.path.join(self.root, "media")
+        self.stick = os.path.join(self.media, "nomad", "MY STICK")
+        self.locked = os.path.join(self.media, "nomad", "LOCKED")
+        os.makedirs(self.stick); os.makedirs(self.locked)
+        self.put("notes/Shopping.md", "filament, nozzles")
+        self.put("notes/What now?.md", "a title a FAT drive cannot store")
+        self.put("notes/attachments/photo.jpg", "JPG")
+        self.put("notes/.flatnotes/index", "search index: rebuilt by the Notes app, not backed up")
+        self.put("books/manuals/Printer Manual.pdf", "%PDF" + "x" * 5000)
+        mounts = os.path.join(self.root, "mounts")
+        with open(mounts, "w") as fh:
+            fh.write("/dev/root / ext4 rw,noatime 0 0\n"
+                     f"/dev/sda1 {self.stick.replace(' ', chr(92) + '040')} vfat rw,nosuid,uid=1000 0 0\n"
+                     f"/dev/sdb1 {self.locked} vfat ro,nosuid 0 0\n"
+                     f"/dev/sdc1 {self.media}/nomad/GONE vfat rw 0 0\n"
+                     "/dev/sdd1 /mnt/elsewhere vfat rw 0 0\n")
+        self.saved = (backup.DATA, backup.MEDIA_DIR, backup.MOUNTS_FILE)
+        backup.DATA, backup.MEDIA_DIR, backup.MOUNTS_FILE = self.data, self.media, mounts
+
+    def tearDown(self):
+        backup.DATA, backup.MEDIA_DIR, backup.MOUNTS_FILE = self.saved
+
+    def put(self, rel, text):
+        p = os.path.join(self.data, rel)
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p, "w") as fh:
+            fh.write(text)
+
+    def made(self):
+        folder = os.path.join(self.stick, backup.FOLDER)
+        return sorted(os.listdir(folder)) if os.path.isdir(folder) else []
+
+    def tree(self, top):
+        return sorted(os.path.relpath(os.path.join(d, n), top) for d, _, names in os.walk(top) for n in names)
+
+    def test_only_drives_under_media_are_offered(self):
+        drives = backup.list_drives()
+        self.assertEqual([(d["id"], d["name"], d["read_only"]) for d in drives],
+                         [("nomad/MY STICK", "MY STICK", False), ("nomad/LOCKED", "LOCKED", True)])
+        self.assertEqual(drives[0]["backups"], [])
+        self.assertGreater(drives[0]["free"], 0)
+        self.assertEqual(backup.sizes()["notes"]["files"], 3)        # the hidden index is not counted
+
+    def test_backup_to_usb_copies_notes_and_books(self):
+        job = backup.start_usb("nomad/MY STICK")
+        wait(job)
+        self.assertEqual(job.state, "done", job.message)
+        self.assertEqual(job.done, job.total)
+        (name,) = self.made()
+        self.assertEqual(self.tree(os.path.join(self.stick, backup.FOLDER, name)),
+                         ["books/manuals/Printer Manual.pdf", "installed-content.txt", "notes/Shopping.md",
+                          "notes/What now_.md", "notes/attachments/photo.jpg"])
+        self.assertEqual(backup.list_drives()[0]["backups"], [name])
+        again = backup.start_usb("nomad/MY STICK", books=False)      # same minute: a second folder, nothing overwritten
+        wait(again)
+        newest = [n for n in self.made() if n != name][0]
+        self.assertNotIn("books/manuals/Printer Manual.pdf", self.tree(os.path.join(self.stick, backup.FOLDER, newest)))
+        self.assertIn("Libraries (Content Manager):", open(os.path.join(self.stick, backup.FOLDER, newest, "installed-content.txt")).read())
+
+    def test_bad_drive_choices_are_refused(self):
+        for drive in ["nomad/LOCKED", "nomad/GONE", "nomad/NOPE", "../data", "", "/"]:
+            with self.assertRaises(ValueError, msg=drive):
+                backup.start_usb(drive)
+        self.assertEqual(os.listdir(self.locked), [])
+
+    def test_full_drive_leaves_no_half_backup(self):
+        import collections
+        usage, orig = collections.namedtuple("usage", "total used free"), backup.shutil.disk_usage
+        backup.shutil.disk_usage = lambda p: usage(1 << 30, 1 << 30, 1000)
+        try:
+            job = backup.start_usb("nomad/MY STICK")
+            wait(job)
+        finally:
+            backup.shutil.disk_usage = orig
+        self.assertEqual((job.state, job.message), ("error", "Not enough room on that drive"))
+        self.assertEqual(self.made(), [])
+
+    def test_cancelled_backup_is_removed(self):
+        self.put("books/big.pdf", "x" * (3 << 20))
+        orig = backup.manifest
+        def cancel_then_list():                # cancel after the files are copied, before it finishes
+            jobs.cancel(job.id)
+            raise InterruptedError
+        backup.manifest = cancel_then_list
+        try:
+            job = backup.start_usb("nomad/MY STICK")
+            wait(job)
+        finally:
+            backup.manifest = orig
+        self.assertEqual(job.state, "cancelled")
+        self.assertEqual(self.made(), [])
+
+    def test_notes_download_is_a_zip(self):
+        import io
+        srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        try:
+            base = f"http://127.0.0.1:{srv.server_port}"
+            r = urllib.request.urlopen(base + "/api/backup/download")
+            self.assertIn("attachment", r.headers["Content-Disposition"])
+            z = zipfile.ZipFile(io.BytesIO(r.read()))
+            info = json.load(urllib.request.urlopen(base + "/api/backup"))
+        finally:
+            srv.shutdown()
+        self.assertEqual(sorted(z.namelist()), ["installed-content.txt", "notes/Shopping.md", "notes/What now?.md",
+                                                "notes/attachments/photo.jpg"])
+        self.assertEqual(z.read("notes/Shopping.md"), b"filament, nozzles")
+        self.assertIsNone(z.testzip())
+        self.assertEqual([d["name"] for d in info["drives"]], ["MY STICK", "LOCKED"])
+        self.assertEqual(info["sizes"]["books"]["files"], 1)
+
+
 class AuthTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -736,7 +853,8 @@ class AuthTests(unittest.TestCase):
         mine = cookie.split(";")[0]
         for path, body in [("/api/zim/download", {"url": "https://download.kiwix.org/zim/a.zim"}),
                            ("/api/zim/delete", {"file": "x.zim"}), ("/api/zim/rescan", {}),
-                           ("/api/jobs/cancel", {"id": "x"}), ("/api/maps/extract", {"region": "detroit", "detail": "overview"}),
+                           ("/api/jobs/cancel", {"id": "x"}), ("/api/backup/usb", {"drive": "x"}),
+                           ("/api/maps/extract", {"region": "detroit", "detail": "overview"}),
                            ("/api/maps/estimate", {"region": "detroit", "detail": "overview"}),
                            ("/api/maps/delete", {"file": "x.pmtiles"}), ("/api/auth/set", {"pin": "0000"}),
                            ("/api/auth/clear", {}), ("/api/anything-new", {})]:

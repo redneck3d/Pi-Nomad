@@ -1,6 +1,7 @@
 // Helpers shared by the dashboard and manager pages.
 const GB = 1024 ** 3;
-const fmt = b => b >= GB ? (b / GB).toFixed(1) + " GB" : (b / 1048576).toFixed(b >= 1048576 * 10 ? 0 : 1) + " MB";
+const fmt = b => b >= GB ? (b / GB).toFixed(1) + " GB" : b >= 1048576 ? (b / 1048576).toFixed(b >= 1048576 * 10 ? 0 : 1) + " MB"
+  : b >= 1024 ? Math.round(b / 1024) + " KB" : b + " bytes";
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
 const $ = id => document.getElementById(id);
 
@@ -28,7 +29,7 @@ function watchJobs(kind, el, onDone) {
         const note = j.state === "error" ? `<span class="err">${esc(j.message)}</span>`
           : j.state === "done" ? '<span class="ok">Done</span>'
           : j.state === "queued" ? "Waiting for the current job"
-          : `${j.total && kind === "zim" ? fmt(j.done) + " of " + fmt(j.total) + " " : ""}${esc(j.message)}`;
+          : `${j.total && kind !== "map" ? fmt(j.done) + " of " + fmt(j.total) + " " : ""}${esc(j.message)}`;
         return `<div class="panel"><div class="row"><b>${esc(j.title)}</b><span class="mut">${esc(j.state)}</span>
           ${live ? `<button class="del" onclick="cancelJob('${j.id}')">Cancel</button>` : ""}</div>
           ${live ? `<div class="prog"><i style="width:${pct}%"></i></div>` : ""}<div class="mut">${note}</div></div>`;

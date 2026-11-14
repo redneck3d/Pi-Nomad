@@ -15,6 +15,7 @@ import zipfile
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 import auth
+import backup
 import books
 import jobs
 import maps
@@ -221,6 +222,18 @@ class Handler(SimpleHTTPRequestHandler):
                                    "default-src 'self' data:; script-src 'none'; style-src 'self' 'unsafe-inline'; object-src 'none'"),
                                   ("X-Content-Type-Options", "nosniff")])
 
+    def _backup_zip(self):
+        """Stream the notes as a zip. No length is known up front, so the connection closing ends it."""
+        self.send_response(200)
+        self.send_header("Content-Type", "application/zip")
+        self.send_header("Content-Disposition", f'attachment; filename="pi-nomad-notes-{time.strftime("%Y-%m-%d")}.zip"')
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        try:
+            backup.write_zip(self.wfile)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+
     def _cover(self, rel):
         try:
             data, ctype = books.cover(rel)
@@ -295,6 +308,10 @@ class Handler(SimpleHTTPRequestHandler):
             return self._guard(lambda: books.epub_info(q.get("file", "")))
         if p == "/api/books/cover":
             return self._cover(q.get("file", ""))
+        if p == "/api/backup":
+            return self._json({"drives": backup.list_drives(), "sizes": backup.sizes()})
+        if p == "/api/backup/download":
+            return self._backup_zip()
         if p == "/api/status":
             return self._json({"services": service_states(), "storage": storage(), "zims": zim.list_zims()})
         if p == "/api/auth":
@@ -336,6 +353,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self._guard(lambda: zim.delete(b["file"]) or {"ok": True})
         if p == "/api/zim/rescan":
             return self._guard(lambda: {"added": zim.rescan()})
+        if p == "/api/backup/usb":
+            return self._guard(lambda: backup.start_usb(b["drive"], b.get("books", True)).public())
         if p == "/api/jobs/cancel":
             return self._guard(lambda: {"ok": jobs.cancel(b["id"])})
         if p == "/api/maps/extract":

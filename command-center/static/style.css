@@ -71,6 +71,8 @@ button.go:hover { background:#f4b65a; border-color:#f4b65a; }
 button.del { background:transparent; color:var(--bad); border-color:transparent; }
 button.del:hover { border-color:var(--bad); }
 button:disabled { opacity:.55; cursor:default; }
+a.btn { display:inline-flex; align-items:center; min-height:44px; padding:.55rem .9rem; border-radius:10px; background:var(--amber); color:#21170a; font-weight:700; text-decoration:none; }
+a.btn:hover { background:#f4b65a; }
 .row { display:flex; gap:.6rem; flex-wrap:wrap; align-items:center; }
 
 /* ---------- progress and messages ---------- */

@@ -39,7 +39,7 @@ The card has about 96GB free after install. All 7 collections together come to a
 
 - Buy a high-endurance or A2-rated card from a known brand; fakes are common at this size.
 - Keep it read-mostly: Docker logs were the main steady writer, so `compose.yaml` caps them at 15 MB per app.
-- Back up your notes (`/srv/nomad/notes`) off the card now and then, since SD cards fail without warning.
+- Back up your notes and books off the card now and then with the Backup page, since SD cards fail without warning.
 - If you outgrow it, mount a USB SSD at `/srv/nomad` and nothing else changes.
 - The dashboard's Storage panel shows free space and what is using it.
 
@@ -48,6 +48,10 @@ The card has about 96GB free after install. All 7 collections together come to a
 - **ZIM manager:** searches the Kiwix catalog, downloads into `/srv/nomad/zim` (resumes if Wi-Fi drops, one download at a time, refuses if the card would fill up), checks each file against the checksum Kiwix publishes, and adds the file to `library.xml` itself. Kiwix reloads that file automatically.
 - **Files app:** browse, upload and delete anything on the data drive. After adding or deleting a ZIM there, press **Rescan folder** in the Content Manager. A note uploaded there can't be edited in Notes until the `flatnotes` container restarts.
 - **Maps:** the Protomaps planet file is far too big for the card, so the manager cuts out just your region with the `pmtiles extract` tool. The viewer (MapLibre) and Protomaps' fonts and icons are bundled into the Docker image, so maps work with no internet. You can also drop any `.pmtiles` file into `/srv/nomad/maps`.
+
+## Backup
+
+The Backup page copies your notes and books to a USB drive plugged into the Pi, into a dated folder inside `pi-nomad-backup`. It can also download your notes as a zip to the phone or PC you are using. Libraries and maps are not copied because they can be downloaded again; every backup includes `installed-content.txt`, a list of them. To restore, upload the `notes` and `books` folders back through the Files app. USB drives are found through the Pi desktop, which mounts them automatically while it is logged in.
 
 ## Bookshelf
 

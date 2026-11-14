@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Backup - Pi-Nomad</title><meta name="theme-color" content="#141c2d">
+<link rel="icon" type="image/png" href="/img/favicon.png"><link rel="apple-touch-icon" href="/img/apple-touch-icon.png"><link rel="stylesheet" href="/style.css">
+<style>
+  .drive { display:flex; flex-wrap:wrap; align-items:center; gap:.3rem .9rem; padding:.7rem 0; border-top:1px solid var(--line); cursor:pointer; }
+  .drive:first-child { border-top:0; }
+  .drive input, #books { min-height:0; width:1.15rem; height:1.15rem; padding:0; accent-color:var(--amber); }
+  .drive b { flex:0 1 auto; overflow-wrap:anywhere; }
+  .drive .last { margin-left:auto; }
+  @media (max-width:620px) { .drive .mut { flex:1 1 100%; margin-left:2.05rem; } }
+</style></head>
+<body>
+<nav class="top"><a class="brand" href="/"><img src="/img/mark.png" alt="" width="192" height="145"><span>Pi-<b>Nomad</b></span></a>
+  <div class="links"><a href="/">Dashboard</a><a href="/books/">Bookshelf</a><a href="/zim.html">Content</a><a href="/maps/manage.html">Map regions</a><a href="/maps/">Open map</a><a aria-current="page" href="/backup.html">Backup</a></div></nav>
+<hr class="bar-line">
+<div class="wrap">
+  <div class="page-head">
+    <h1>Backup</h1>
+    <p class="sub">Your notes and books exist only on this deck's memory card, and cards fail without warning. Keep a copy somewhere else. Libraries and maps are left out because they can be downloaded again; each backup includes a list of them.</p>
+  </div>
+
+  <h3>Copy to a USB drive</h3>
+  <div class="panel">
+    <p class="mut" id="what" style="margin-top:0">Checking what there is to back up&hellip;</p>
+    <div id="drives"><span class="mut">Looking for drives&hellip;</span></div>
+    <label class="row" style="margin-top:.9rem"><input type="checkbox" id="books" checked> Include books</label>
+    <div class="row" style="margin-top:.9rem"><button class="go" id="go" disabled>Back up now</button><span class="mut" id="goMsg"></span></div>
+  </div>
+  <div id="jobs"></div>
+
+  <h3>Save a copy to this device</h3>
+  <div class="panel">
+    <p style="margin-top:0">Downloads your notes as one zip file to the phone or computer you are using now. No USB drive needed. Books are not included.</p>
+    <a class="btn" href="/api/backup/download" download>Download notes backup</a>
+  </div>
+
+  <h3>Getting things back</h3>
+  <div class="panel mut">
+    Open <a id="files" href="#">Files</a> on the deck and upload the <b>notes</b> and <b>books</b> folders from your backup into the folders of the same name. Then use the list in <b>installed-content.txt</b> to download your libraries and maps again.
+  </div>
+</div>
+<script src="/auth.js"></script>
+<script src="/shared.js"></script>
+<script>
+let drives = [], picked = null, info = null;
+
+function drawDrives() {
+  if (!drives.length) {
+    $("drives").innerHTML = '<span class="mut">No USB drive found. Plug one into the Pi and it will appear here in a few seconds.</span>';
+  } else {
+    if (!drives.some(d => d.id === picked)) picked = (drives.find(d => !d.read_only) || drives[0]).id;
+    $("drives").innerHTML = drives.map((d, i) => `<label class="drive">
+      <input type="radio" name="drive" value="${i}" ${d.id === picked ? "checked" : ""} ${d.read_only ? "disabled" : ""}>
+      <b>${esc(d.name)}</b>
+      <span class="mut">${d.read_only ? '<span class="err">Read-only</span>' : fmt(d.free) + " free of " + fmt(d.total)}</span>
+      <span class="mut last">${d.backups.length ? d.backups.length + " backup" + (d.backups.length > 1 ? "s" : "") + ", newest " + esc(d.backups[d.backups.length - 1].replace("_", " ")) : "No backups yet"}</span></label>`).join("");
+    document.querySelectorAll("input[name=drive]").forEach(r => r.onchange = () => { picked = drives[+r.value].id; check(); });
+  }
+  check();
+}
+function check() {
+  const d = drives.find(x => x.id === picked);
+  const need = info ? info.notes.bytes + ($("books").checked ? info.books.bytes : 0) : 0;
+  const ok = d && !d.read_only && d.free > need;
+  $("go").disabled = !ok;
+  $("goMsg").textContent = d && !d.read_only && !ok ? "Not enough room on that drive." : "";
+}
+async function refresh() {
+  try {
+    const r = await api("/api/backup");
+    drives = r.drives; info = r.sizes;
+    const part = (s, word) => `${s.files} ${word}${s.files === 1 ? "" : "s"} (${fmt(s.bytes)})`;
+    $("what").textContent = `On this deck: ${part(info.notes, "note file")} and ${part(info.books, "book file")}.`;
+    drawDrives();
+  } catch (e) { /* server restarting; try again */ }
+}
+$("books").onchange = check;
+$("go").onclick = async () => {
+  $("go").disabled = true;
+  try { await api("/api/backup/usb", { drive: picked, books: $("books").checked }); }
+  catch (e) { alert(e.message); }
+  refresh();
+};
+$("files").href = `http://${location.hostname}:8083/`;
+refresh(); setInterval(refresh, 4000);
+watchJobs("backup", $("jobs"), refresh);
+</script>
+</body></html>

@@ -6,7 +6,7 @@ import uuid
 _jobs = {}
 _lock = threading.Lock()
 # One heavy job per kind at a time: a Pi shouldn't run parallel multi-GB transfers.
-_gates = {"zim": threading.Semaphore(1), "map": threading.Semaphore(1)}
+_gates = {"zim": threading.Semaphore(1), "map": threading.Semaphore(1), "backup": threading.Semaphore(1)}
 
 
 class Job:
