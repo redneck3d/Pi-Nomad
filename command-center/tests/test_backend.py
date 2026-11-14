@@ -20,7 +20,7 @@ os.makedirs(os.environ["ZIM_DIR"]); os.makedirs(os.environ["MAPS_DIR"]); os.make
 
 import zipfile  # noqa: E402
 
-import app, auth, backup, books, jobs, maps, search, system, zim  # noqa: E402
+import app, auth, backup, books, jobs, maps, power, search, system, zim  # noqa: E402
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
 CH = '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>{0}</title></head><body><h1>{0}</h1><p>Text of {0}.</p>{1}</body></html>'
@@ -933,6 +933,61 @@ class BackupTests(unittest.TestCase):
         self.assertEqual(info["sizes"]["books"]["files"], 1)
 
 
+class PowerTests(unittest.TestCase):
+    """The app only ever writes one word to a file; the helper on the Pi does the rest."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp(dir=TMP)
+        self.saved, power.POWER_DIR = power.POWER_DIR, self.dir
+        self.srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
+        threading.Thread(target=self.srv.serve_forever, daemon=True).start()
+        self.base = f"http://127.0.0.1:{self.srv.server_port}"
+
+    def tearDown(self):
+        power.POWER_DIR = self.saved
+        self.srv.shutdown()
+
+    def post(self, action):
+        req = urllib.request.Request(self.base + "/api/power", headers=JSON, data=json.dumps({"action": action}).encode())
+        try:
+            r = urllib.request.urlopen(req)
+        except urllib.error.HTTPError as e:
+            r = e
+        return (r.status if hasattr(r, "status") else r.code), json.load(r)
+
+    def asked(self):
+        p = os.path.join(self.dir, "request")
+        return open(p).read() if os.path.exists(p) else None
+
+    def test_nothing_happens_until_the_helper_is_installed(self):
+        self.assertEqual(json.load(urllib.request.urlopen(self.base + "/api/power")), {"available": False, "busy": []})
+        status, data = self.post("poweroff")
+        self.assertEqual(status, 400)
+        self.assertIn("install.sh", data["error"])
+        self.assertIsNone(self.asked())
+
+    def test_only_two_requests_can_be_made(self):
+        open(os.path.join(self.dir, "helper-installed"), "w").close()
+        self.assertTrue(power.available())
+        for bad in ["rm -rf /", "halt", "", None, "poweroff; reboot", ["reboot"]]:
+            self.assertEqual(self.post(bad)[0], 400, bad)
+            self.assertIsNone(self.asked())
+        self.assertEqual(self.post("reboot"), (200, {"ok": True, "action": "reboot", "message": "Restarting"}))
+        self.assertEqual(self.asked(), "reboot\n")
+        self.assertEqual(self.post("poweroff")[0], 200)
+        self.assertEqual(self.asked(), "poweroff\n")
+
+    def test_running_work_is_reported_before_a_shutdown(self):
+        go = threading.Event()
+        job = jobs.start("backup", "Backup to USB", lambda j: go.wait(5))
+        time.sleep(0.1)
+        try:
+            self.assertIn("Backup to USB", power.status()["busy"])
+        finally:
+            go.set(); wait(job)
+        self.assertNotIn("Backup to USB", power.status()["busy"])
+
+
 class AuthTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -977,7 +1032,8 @@ class AuthTests(unittest.TestCase):
         mine = cookie.split(";")[0]
         for path, body in [("/api/zim/download", {"url": "https://download.kiwix.org/zim/a.zim"}),
                            ("/api/zim/delete", {"file": "x.zim"}), ("/api/zim/rescan", {}),
-                           ("/api/jobs/cancel", {"id": "x"}), ("/api/backup/usb", {"drive": "x"}),
+                           ("/api/jobs/cancel", {"id": "x"}), ("/api/power", {"action": "poweroff"}),
+                           ("/api/backup/usb", {"drive": "x"}),
                            ("/api/maps/extract", {"region": "detroit", "detail": "overview"}),
                            ("/api/maps/estimate", {"region": "detroit", "detail": "overview"}),
                            ("/api/maps/delete", {"file": "x.pmtiles"}), ("/api/auth/set", {"pin": "0000"}),
@@ -1017,9 +1073,9 @@ class AuthTests(unittest.TestCase):
         self.assertEqual(auth._fails["count"], 0)
 
     def test_pin_is_stored_hashed_and_sessions_expire(self):
-        auth.set_pin("2468")
+        auth.set_pin("zebra-pin")      # letters a hex hash can never contain, so this cannot fail by chance
         raw = open(os.path.join(auth.CONFIG_DIR, "admin.json")).read()
-        self.assertNotIn("2468", raw)
+        self.assertNotIn("zebra", raw)
         self.assertEqual(os.stat(os.path.join(auth.CONFIG_DIR, "admin.json")).st_mode & 0o777, 0o600)
         token = auth.new_session()
         self.assertTrue(auth.valid(token))

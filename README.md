@@ -49,6 +49,10 @@ The card has about 96GB free after install. All 7 collections together come to a
 - **Files app:** browse, upload and delete anything on the data drive. After adding or deleting a ZIM there, press **Rescan folder** in the Content Manager. A note uploaded there can't be edited in Notes until the `flatnotes` container restarts.
 - **Maps:** the Protomaps planet file is far too big for the card, so the manager cuts out just your region with the `pmtiles extract` tool. The viewer (MapLibre) and Protomaps' fonts and icons are bundled into the Docker image, so maps work with no internet. You can also drop any `.pmtiles` file into `/srv/nomad/maps`.
 
+## Shut down and restart
+
+The dashboard has Restart and Shut down buttons under the system readings. Use Shut down before cutting power so the memory card is not damaged. After a shut down the Pi stays off until you press its power button or reconnect power. The installer adds a small helper to the Pi that makes this possible; it can only do those two things.
+
 ## Search
 
 The search box on the dashboard looks through every library, your notes and your book titles at once. Library results come from Kiwix, so anything you install is searchable straight away. The text inside your own books is not searched, only titles and authors.

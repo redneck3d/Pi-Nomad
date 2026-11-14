@@ -41,6 +41,10 @@
   <h3>System</h3>
   <div id="warn"></div>
   <div class="sys" id="system"><span class="empty">Loading&hellip;</span></div>
+  <div class="panel power" id="power" hidden>
+    <p id="powerNote">Turn the deck off here before you cut the power, so the memory card is not damaged.</p>
+    <button id="restart">Restart</button><button id="shutdown">Shut down</button>
+  </div>
 
   <div class="split">
     <section>
@@ -162,6 +166,40 @@ async function refreshSystem() {
   catch (e) { $("system").innerHTML = '<span class="empty">System readings unavailable.</span>'; }
 }
 
+// ----- shut down / restart -----
+async function loadPower() {
+  try {
+    const p = await api("/api/power");
+    $("power").hidden = false;
+    $("restart").disabled = $("shutdown").disabled = !p.available;
+    if (!p.available) $("powerNote").textContent = "Shut down and restart are not set up on this Pi yet. Run the installer again to add them.";
+  } catch (e) { /* older server: leave the panel hidden */ }
+}
+function veil(title, text) {
+  const v = document.createElement("div"); v.className = "veil"; v.setAttribute("role", "alert");
+  v.innerHTML = `<div><h2>${title}</h2><p>${text}</p></div>`;
+  document.body.appendChild(v);
+  return v.querySelector("p");
+}
+async function powerAction(action) {
+  const off = action === "poweroff";
+  let busy = [];
+  try { busy = (await api("/api/power")).busy; } catch (e) {}
+  const warn = busy.length ? "\n\nStill running and will be cut off: " + busy.join(", ") + "." : "";
+  if (!confirm((off ? "Shut the deck down? To turn it back on you will need to press its power button or reconnect power."
+                    : "Restart the deck? It will be away for about a minute.") + warn)) return;
+  try { await api("/api/power", { action }); } catch (e) { alert(e.message); return; }
+  if (off) { veil("Shutting down", "Wait 30 seconds, then it is safe to cut the power."); return; }
+  const note = veil("Restarting", "This page comes back by itself when the deck is ready.");
+  let wentAway = false;
+  const t = setInterval(async () => {                    // wait for it to go away, then to answer again
+    try { await fetch("/api/auth", { cache: "no-store" }).then(r => { if (!r.ok) throw 0; }); if (wentAway) { clearInterval(t); location.reload(); } }
+    catch (e) { wentAway = true; note.textContent = "Starting up again\u2026"; }
+  }, 3000);
+}
+$("restart").onclick = () => powerAction("reboot");
+$("shutdown").onclick = () => powerAction("poweroff");
+
 async function refresh() {
   try {
     const d = await api("/api/status");
@@ -172,6 +210,7 @@ async function refresh() {
 Admin.mount($("admin"));
 buildApps(); refresh(); setInterval(refresh, 10000);
 refreshSystem(); setInterval(refreshSystem, 5000);
+loadPower();
 </script>
 </body>
 </html>

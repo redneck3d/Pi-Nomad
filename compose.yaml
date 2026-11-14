@@ -24,6 +24,7 @@ services:
       NOMAD_DATA: /data
       COMPOSE_PROJECT: pi-nomad
       CONFIG_DIR: /config
+      POWER_DIR: /power
     volumes:
       - ${NOMAD_DATA:-/srv/nomad}:/data:ro
       # Only these two folders are writable: the ZIM and map managers download into them.
@@ -32,6 +33,9 @@ services:
       - ${NOMAD_DATA:-/srv/nomad}/maps:/data/maps
       # Admin PIN hash. A named volume, kept out of /srv/nomad so the Files app cannot touch it.
       - nomad-config:/config
+      # Shut down / restart: the app writes a one-word request here and a helper that
+      # install.sh puts on the Pi acts on it. The app gets no other control over the Pi.
+      - /var/lib/pi-nomad/power:/power
       # USB drives for the Backup page. The Pi's desktop mounts a plugged-in drive under /media;
       # "rslave" makes drives plugged in later show up inside the container too.
       - type: bind

@@ -27,6 +27,48 @@ if [[ ! -f "$NOMAD_DATA/zim/library.xml" ]]; then
 XML
 fi
 
+echo "==> Installing the power helper (lets the dashboard shut down or restart the Pi)"
+POWER_DIR=/var/lib/pi-nomad/power
+mkdir -p "$POWER_DIR"
+rm -f "$POWER_DIR/request"          # never act on a request left over from before
+cat > /usr/local/sbin/pi-nomad-power <<'SH'
+#!/bin/sh
+# Runs as root when the Pi-NOMAD dashboard leaves a request. Two words are understood;
+# anything else is thrown away.
+f=/var/lib/pi-nomad/power/request
+[ -f "$f" ] || exit 0
+want=$(head -c 16 "$f" | tr -cd 'a-z')
+rm -f "$f"
+sleep 2                              # let the dashboard get its answer first
+case "$want" in
+  poweroff) systemctl poweroff ;;
+  reboot)   systemctl reboot ;;
+esac
+SH
+chmod 755 /usr/local/sbin/pi-nomad-power
+cat > /etc/systemd/system/pi-nomad-power.path <<'UNIT'
+[Unit]
+Description=Pi-NOMAD: watch for a shut down or restart request from the dashboard
+
+[Path]
+PathChanged=/var/lib/pi-nomad/power/request
+Unit=pi-nomad-power.service
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+cat > /etc/systemd/system/pi-nomad-power.service <<'UNIT'
+[Unit]
+Description=Pi-NOMAD: shut down or restart when the dashboard asks
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/pi-nomad-power
+UNIT
+systemctl daemon-reload
+systemctl enable --now pi-nomad-power.path
+touch "$POWER_DIR/helper-installed"
+
 echo "==> Installing stack to $INSTALL_DIR"
 mkdir -p "$INSTALL_DIR"
 cp -r "$SRC_DIR/compose.yaml" "$SRC_DIR/command-center" "$INSTALL_DIR/"

@@ -19,6 +19,7 @@ import backup
 import books
 import jobs
 import maps
+import power
 import search
 import system
 import zim
@@ -313,6 +314,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self._json({"drives": backup.list_drives(), "sizes": backup.sizes()})
         if p == "/api/backup/download":
             return self._backup_zip()
+        if p == "/api/power":
+            return self._json(power.status())
         if p == "/api/search":
             return self._guard(lambda: search.everything(q.get("q", "")))
         if p == "/api/status":
@@ -356,6 +359,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self._guard(lambda: zim.delete(b["file"]) or {"ok": True})
         if p == "/api/zim/rescan":
             return self._guard(lambda: {"added": zim.rescan()})
+        if p == "/api/power":
+            return self._guard(lambda: power.request(b.get("action")))
         if p == "/api/backup/usb":
             return self._guard(lambda: backup.start_usb(b["drive"], b.get("books", True)).public())
         if p == "/api/jobs/cancel":
