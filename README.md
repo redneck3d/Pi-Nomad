@@ -96,6 +96,10 @@ On a Raspberry Pi 5 (4 GB, Debian 13 trixie), `install.sh` installed Docker and 
 
 The bookshelf, system panel and admin PIN were written on a second PC from the original files, then combined with the fixes and the redesign above. All 34 unit tests pass on the Pi, and the combined dashboard, system panel and bookshelf page were opened in a browser from a preview on the Pi. The system panel's temperature, memory, uptime and low-voltage readings match the Pi's own. This Pi's kernel has no `get_throttled` file, so only the low-voltage alarm is available, and no fan is fitted, so the fan reading is unchecked.
 
+## Added and verified on the Pi (2026-11-14)
+
+Review fixes, Backup, Search, and the Shut down and Restart buttons were each tested on the Pi before going live: 57 unit tests pass, a real download was checksum-verified, a backup was written to a real exFAT USB stick and matched byte for byte, search ran against 11 real libraries, and both power buttons were pressed for real.
+
 ## Still not tested
 
 - **`hotspot.sh`:** it takes over the Wi-Fi, so connect Ethernet first.

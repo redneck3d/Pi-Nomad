@@ -57,6 +57,8 @@ Backup 2026-11-14: tested on the Pi from a preview container against a real 57 G
 
 Search 2026-11-14: tested from a preview on the Pi against the 11 real libraries (answers in about 0.2 s) and a temporary note; result links opened in Kiwix.
 
+Shut down / restart 2026-11-14, on the real Pi from the dashboard buttons: Restart gave a new boot in 17 s and the dashboard back in 27 s, with the page reloading itself; Shut down took the Pi off the network in about 14 s, and after the owner powered it on all five apps, the helper, backup and search came back unaided. The request file was gone after both, so there is no restart loop.
+
 **Not yet tested:** `hotspot.sh` (it takes over wlan0, so connect Ethernet first); the 14 GB and 53 GB Wikipedias on 4 GB RAM; the bookshelf with real books; the admin PIN in a browser on the Pi; the fan reading.
 
 ## Next work, in order
