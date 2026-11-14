@@ -12,7 +12,7 @@ An offline-first knowledge server for a Raspberry Pi 5, modeled on [Project NOMA
 | Supply Depot / file tools | `files` ([Dufs](https://github.com/sigoden/dufs)) | Working config |
 | Offline maps (ProtoMaps) | Viewer at `/maps/`, region manager at `/maps/manage.html` | Tested in Docker |
 | Content downloads (ZIM manager) | `/zim.html`: collections, catalog search, resumable downloads, delete | Tested in Docker |
-| Education (Kolibri) | `kolibri`, built from the Kolibri Python package (no current upstream image) | Runs on the Pi; lesson import not yet tried |
+| Education (Kolibri) | `kolibri`, built from the Kolibri Python package (no current upstream image) | Installed and running on the Pi; lesson import not yet tried |
 | Your own books (not in NOMAD) | Bookshelf at `/books/`: lists EPUB and PDF files from `/srv/nomad/books`, built-in EPUB reader | Tested on the Pi with 30 real books |
 | System info | System panel on the dashboard: temperature, fan, processor, memory, uptime, drive writes, clock check, power and heat warnings | Checked on the real Pi except the fan reading (no fan fitted) |
 | Admin lock (not in NOMAD) | Optional admin PIN: reading stays open, downloads, deletes, backup and power need the PIN | Tested on the Pi |

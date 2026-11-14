@@ -73,6 +73,8 @@ Place search 2026-11-14: unit-tested with a hand-built PMTiles file; on the Pi t
 
 App start/stop 2026-11-14: unit-tested against a stand-in Docker socket; from a preview container on the Pi, CyberChef was really stopped, started and restarted through the `:ro`-mounted socket (each under a second), the status lights followed, and stopping the Command Center or an unknown action was refused.
 
+Kolibri 2026-11-14: installed on the Pi through `install.sh`; the container came up, port 8085 redirects to its setup page, about 126 MB resident idle, six services shown on the dashboard, its folder hidden in Files, and its start/stop row locked behind the PIN. The owner does the first-run setup himself. Not yet tried: importing lessons, and memory with lessons in use.
+
 **Not yet tested:** the 14 GB and 53 GB Wikipedias on 4 GB RAM; the fan reading.
 
 ## Next work, in order
