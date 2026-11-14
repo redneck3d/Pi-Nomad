@@ -15,7 +15,7 @@ An offline-first knowledge server for a Raspberry Pi 5, modeled on [Project NOMA
 | Education (Kolibri) | commented out in compose | Need arm64 image |
 | Your own books (not in NOMAD) | Bookshelf at `/books/`: lists EPUB and PDF files from `/srv/nomad/books`, built-in EPUB reader | Tested on the Pi with 30 real books |
 | System info | System panel on the dashboard: temperature, fan, processor, memory, uptime, drive writes, clock check, power and heat warnings | Checked on the real Pi except the fan reading (no fan fitted) |
-| Admin lock (not in NOMAD) | Optional admin PIN: reading stays open, downloads and deletes need the PIN | Built; unit-tested |
+| Admin lock (not in NOMAD) | Optional admin PIN: reading stays open, downloads, deletes, backup and power need the PIN | Tested on the Pi |
 | Command Center (dashboard) | `command-center` (Python, no deps) | Done: tiles, live status, storage, content and map managers. Start/stop buttons are next |
 | Setup wizard + content collections | `install.sh` + Content Manager collections | Collections done; no first-run wizard yet |
 | Auto updates | none | Phase 3 (Watchtower or cron) |
@@ -106,7 +106,6 @@ Review fixes, Backup, Search, and the Shut down and Restart buttons were each te
 ## Still not tested
 
 - **Biggest content:** files up to 3.7 GB work; the 14 GB and 53 GB Wikipedias are untried on 4 GB of RAM.
-- The **admin PIN in a browser** on the Pi.
 - **Fan speed** on the system panel (needs a Pi fan fitted).
 
 ## Next steps

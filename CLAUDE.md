@@ -64,11 +64,13 @@ Hotspot 2026-11-14: `hotspot.sh` was rewritten (asks for the Wi-Fi password, so 
 
 Bookshelf with real books 2026-11-14: the owner uploaded 22 EPUBs and 8 PDFs (up to 90 MB). Every EPUB returned its spine, first and middle chapter and cover through the live endpoints, and every PDF was served; none flagged broken. The shelf loads full-size covers (up to 1 MB each), which is heavy on a phone; there is no thumbnailing because the app is stdlib-only.
 
-**Not yet tested:** the 14 GB and 53 GB Wikipedias on 4 GB RAM; the admin PIN in a browser on the Pi; the fan reading.
+Admin PIN 2026-11-14, on the live Pi with a PIN the owner set in his browser: from a device without the PIN all ten changing endpoints (downloads, deletes, map extract, backup, power, job cancel, PIN set/clear) answered 401 locked, a made-up cookie was refused, and every read endpoint and page stayed 200. The dashboard showed the Locked banner, and a change from the Content Manager opened the PIN dialog and reported the PIN was needed when cancelled. The hash file is mode 600 in the `nomad-config` volume. A PIN is currently SET on the Pi, so curl tests of POSTs will get 401 until the owner removes it.
+
+**Not yet tested:** the 14 GB and 53 GB Wikipedias on 4 GB RAM; the fan reading.
 
 ## Next work, in order
 
-1. Finish the Pi checks above: admin PIN in a browser, hotspot after a reboot.
+1. Finish the Pi checks above: hotspot after a reboot.
 2. Meshtastic (researched 2026-11-09, nothing built): MeshMonitor plus its serial bridge for USB radios; open questions are offline map tiles and memory use.
 3. Dashboard start/stop buttons for the individual apps (discuss the risk first). The Docker socket is already root-equivalent: `:ro` on a socket does not restrict API calls.
 4. Map place search (geocoding); first-run setup wizard; auto-update option.
