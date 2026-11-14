@@ -13,7 +13,7 @@ An offline-first knowledge server for a Raspberry Pi 5, modeled on [Project NOMA
 | Offline maps (ProtoMaps) | Viewer at `/maps/`, region manager at `/maps/manage.html` | Tested in Docker |
 | Content downloads (ZIM manager) | `/zim.html`: collections, catalog search, resumable downloads, delete | Tested in Docker |
 | Education (Kolibri) | commented out in compose | Need arm64 image |
-| Your own books (not in NOMAD) | Bookshelf at `/books/`: lists EPUB and PDF files from `/srv/nomad/books`, built-in EPUB reader | Built; tested with generated books only, not real ones |
+| Your own books (not in NOMAD) | Bookshelf at `/books/`: lists EPUB and PDF files from `/srv/nomad/books`, built-in EPUB reader | Tested on the Pi with 30 real books |
 | System info | System panel on the dashboard: temperature, fan, processor, memory, uptime, drive writes, clock check, power and heat warnings | Checked on the real Pi except the fan reading (no fan fitted) |
 | Admin lock (not in NOMAD) | Optional admin PIN: reading stays open, downloads and deletes need the PIN | Built; unit-tested |
 | Command Center (dashboard) | `command-center` (Python, no deps) | Done: tiles, live status, storage, content and map managers. Start/stop buttons are next |
@@ -62,7 +62,7 @@ The search box on the dashboard looks through every library, your notes and your
 
 ## Backup
 
-The Backup page copies your notes and books to a USB drive plugged into the Pi, into a dated folder inside `pi-nomad-backup`. It can also download your notes as a zip to the phone or PC you are using. Libraries and maps are not copied because they can be downloaded again; every backup includes `installed-content.txt`, a list of them. To restore, upload the `notes` and `books` folders back through the Files app. USB drives are found through the Pi desktop, which mounts them automatically while it is logged in.
+The Backup page copies your notes and books to a USB drive plugged into the Pi, into a dated folder inside `pi-nomad-backup`. It can also download your notes as a zip to the phone or PC you are using. Libraries and maps are not copied because they can be downloaded again; every backup includes `installed-content.txt`, a list of them. To restore, upload the `notes` and `books` folders back through the Files app, then press Restart on the dashboard (restored notes can be read but not edited until the Notes app restarts). USB drives are found through the Pi desktop, which mounts them automatically while it is logged in.
 
 ## Bookshelf
 
@@ -106,7 +106,7 @@ Review fixes, Backup, Search, and the Shut down and Restart buttons were each te
 ## Still not tested
 
 - **Biggest content:** files up to 3.7 GB work; the 14 GB and 53 GB Wikipedias are untried on 4 GB of RAM.
-- **Bookshelf with real books**, and the **admin PIN in a browser** on the Pi.
+- The **admin PIN in a browser** on the Pi.
 - **Fan speed** on the system panel (needs a Pi fan fitted).
 
 ## Next steps

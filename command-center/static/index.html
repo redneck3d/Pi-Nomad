@@ -75,14 +75,14 @@ const ICONS = {
 // Add or remove apps here. `svc` is the compose service name used for the status light.
 // `main: true` puts the app in the large Explore row.
 const APPS = [
-  { svc:"kiwix",          main:true, tone:"teal",  ico:"book",     name:"Information Library", desc:"Offline Wikipedia, medical references and survival guides.", port:8080 },
+  { svc:"kiwix",          main:true, tone:"teal",  ico:"book",     name:"Information Library", desc:"Offline Wikipedia, medical references and survival guides.", app:"library" },
   { svc:"command-center", main:true, tone:"green", ico:"map",      name:"Maps",                desc:"Find your way with the regions saved on this device.",      href:"/maps/" },
   { svc:"command-center", main:true, tone:"rust",  ico:"shelf",    name:"Bookshelf",           desc:"Read your own EPUB and PDF books.",                         href:"/books/" },
-  { svc:"flatnotes",      main:true, tone:"amber", ico:"note",     name:"Notes",               desc:"Write and search your own markdown notes.",                 port:8081 },
+  { svc:"flatnotes",      main:true, tone:"amber", ico:"note",     name:"Notes",               desc:"Write and search your own markdown notes.",                 app:"notes" },
   { svc:"command-center", tone:"teal",  ico:"download", name:"Content Manager", desc:"Download new libraries",        href:"/zim.html" },
   { svc:"command-center", tone:"green", ico:"pin",      name:"Map regions",     desc:"Save a map area for offline use", href:"/maps/manage.html" },
-  { svc:"cyberchef",      tone:"rust",  ico:"term",     name:"Data Tools",      desc:"Encode, decode, hash, encrypt",  port:8082 },
-  { svc:"files",          tone:"amber", ico:"folder",   name:"Files",           desc:"Browse and upload to the drive", port:8083 },
+  { svc:"cyberchef",      tone:"rust",  ico:"term",     name:"Data Tools",      desc:"Encode, decode, hash, encrypt",  app:"tools" },
+  { svc:"files",          tone:"amber", ico:"folder",   name:"Files",           desc:"Browse and upload to the drive", app:"files" },
   { svc:"command-center", tone:"teal",  ico:"save",     name:"Backup",          desc:"Copy notes and books to USB",    href:"/backup.html" },
 ];
 const host = location.hostname;
@@ -93,7 +93,7 @@ const stateHtml = i => `<span class="state" id="state${i}"><i></i><span>Checking
 
 // Built once and only updated afterwards, so a refresh can't disturb hover or keyboard focus.
 function buildApps() {
-  const url = a => a.href || `http://${host}:${a.port}`;
+  const url = a => a.href || appUrl(a.app);
   $("tiles").innerHTML = APPS.map((a, i) => !a.main ? "" : `<a class="tile tone-${a.tone}" id="app${i}" href="${url(a)}">
     ${icon(a.ico)}<h2>${a.name}</h2><p>${a.desc}</p>${stateHtml(i)}</a>`).join("");
   $("tools").innerHTML = APPS.map((a, i) => a.main ? "" : `<a class="tool tone-${a.tone}" id="app${i}" href="${url(a)}">
@@ -130,7 +130,7 @@ function renderStorage(s) {
 
 function renderZims(list) {
   $("statZims").textContent = list.length;
-  const page = f => `http://${host}:8080/content/${encodeURIComponent(f.replace(/\.zim$/, ""))}`;
+  const page = f => appUrl("library", "/content/" + encodeURIComponent(f.replace(/\.zim$/, "")));
   $("zims").innerHTML = list.length
     ? `<table>${list.map(z => `<tr><td><a href="${page(z.name)}">${esc(z.name.replace(/\.zim$/, ""))}</a></td><td class="r">${fmt(z.size)}</td></tr>`).join("")}</table>`
     : '<span class="empty">No libraries yet. Open the <a href="/zim.html">Content Manager</a> to download some.</span>';

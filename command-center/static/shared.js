@@ -4,6 +4,8 @@ const fmt = b => b >= GB ? (b / GB).toFixed(1) + " GB" : b >= 1048576 ? (b / 104
   : b >= 1024 ? Math.round(b / 1024) + " KB" : b + " bytes";
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
 const $ = id => document.getElementById(id);
+// Link to one of the other apps (library, notes, tools, files) shown under the Pi-Nomad bar.
+const appUrl = (app, path) => "/app.html?app=" + app + (path ? "&path=" + encodeURIComponent(path) : "");
 
 async function api(path, body) {
   const res = await fetch(path, body === undefined ? {} : {

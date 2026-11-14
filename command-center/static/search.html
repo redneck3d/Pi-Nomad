@@ -49,13 +49,13 @@ async function run(q) {
   if ($("q").value.trim() !== q) return;                 // a newer search has started
   const lib = r.libraries, parts = [];
   if (r.notes.length) parts.push(section("Your notes", r.notes.length, r.notes.map(n =>
-    hit(`http://${host}:8081/note/${encodeURIComponent(n.title)}`, n.title, "", n.snippet, r.q)).join("")));
+    hit(appUrl("notes", "/note/" + encodeURIComponent(n.title)), n.title, "", n.snippet, r.q)).join("")));
   if (r.books.length) parts.push(section("Your books", r.books.length, r.books.map(b =>
     hit(b.type === "pdf" ? "/books-data/" + b.file.split("/").map(encodeURIComponent).join("/") : "/books/read.html?book=" + encodeURIComponent(b.file),
         b.title, [b.author, b.type.toUpperCase()].filter(Boolean).join(" · "), "", r.q)).join("")));
   if (lib.results.length) parts.push(section("Libraries", lib.total > lib.results.length ? `first ${lib.results.length} of about ${lib.total.toLocaleString()}` : lib.results.length,
-    lib.results.map(x => hit(`http://${host}:8080${x.path}`, x.title, x.library, x.snippet, r.q)).join("")
-    + (lib.total > lib.results.length ? `<a class="hit" href="http://${host}:8080/search?pattern=${encodeURIComponent(r.q)}"><b class="t">See all results in the Library</b></a>` : "")));
+    lib.results.map(x => hit(appUrl("library", x.path), x.title, x.library, x.snippet, r.q)).join("")
+    + (lib.total > lib.results.length ? `<a class="hit" href="${esc(appUrl("library", "/search?pattern=" + encodeURIComponent(r.q)))}"><b class="t">See all results in the Library</b></a>` : "")));
   if (lib.error) parts.push(`<p class="err">${esc(lib.error)}. Library results are missing.</p>`);
   $("out").innerHTML = parts.join("") || `<div class="panel mut" style="margin-top:1.2rem">Nothing found for <b>${esc(r.q)}</b>. Try fewer or different words.</div>`;
 }

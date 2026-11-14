@@ -33,6 +33,8 @@ services:
       - ${NOMAD_DATA:-/srv/nomad}/maps:/data/maps
       # Admin PIN hash. A named volume, kept out of /srv/nomad so the Files app cannot touch it.
       - nomad-config:/config
+      # Use the Pi's own clock setting, so backup folders and log lines show local time, not UTC.
+      - /etc/localtime:/etc/localtime:ro
       # Shut down / restart: the app writes a one-word request here and a helper that
       # install.sh puts on the Pi acts on it. The app gets no other control over the Pi.
       - /var/lib/pi-nomad/power:/power

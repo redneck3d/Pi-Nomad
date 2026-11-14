@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pi-Nomad</title><meta name="theme-color" content="#141c2d">
+<link rel="icon" type="image/png" href="/img/favicon.png"><link rel="apple-touch-icon" href="/img/apple-touch-icon.png"><link rel="stylesheet" href="/style.css">
+<style>
+  /* The Library, Notes, Data Tools and Files are separate apps with no link home.
+     This page shows one of them under a slim Pi-Nomad bar, so the way back is always there. */
+  html, body { height:100%; }
+  body { display:flex; flex-direction:column; }
+  #bar { flex:none; display:flex; align-items:center; gap:.3rem .9rem; padding:.3rem .7rem; background:var(--bg-deep); border-bottom:1px solid var(--line); }
+  #bar a { display:flex; align-items:center; min-height:40px; text-decoration:none; font-size:.94rem; white-space:nowrap; }
+  #bar a.home { gap:.45rem; padding:0 .7rem 0 .3rem; border-radius:9px; background:var(--panel-2); color:var(--txt); font-weight:600; }
+  #bar a.home:hover { background:var(--line); }
+  #bar a.home img { width:34px; height:auto; }
+  #name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-family:var(--display); font-size:1.05rem; font-weight:600; color:var(--amber); }
+  #bar a.out { color:var(--mut); padding:0 .3rem; } #bar a.out:hover { color:var(--txt); }
+  iframe { flex:1; width:100%; border:0; background:#fff; }
+  #msg { margin:auto; padding:2rem; text-align:center; color:var(--mut); }
+  @media (max-width:520px) { #bar a.out span { display:none; } }
+</style></head>
+<body>
+<div id="bar">
+  <a class="home" href="/" title="Back to the dashboard"><img src="/img/mark.png" alt="" width="192" height="145">&larr; Dashboard</a>
+  <span id="name"></span>
+  <a class="out" id="out" target="_blank" rel="noopener" title="Open this app in its own tab"><span>Open in its own tab&nbsp;</span>&#8599;</a>
+</div>
+<script>
+// Only these four apps, and only a plain path on them, can be shown here.
+const APPS = { library: ["Information Library", 8080], notes: ["Notes", 8081], tools: ["Data Tools", 8082], files: ["Files", 8083] };
+const q = new URLSearchParams(location.search), app = APPS[q.get("app")];
+let path = q.get("path") || "/";
+if (!path.startsWith("/") || path.startsWith("//") || path.includes("\\")) path = "/";
+if (app) {
+  const url = `http://${location.hostname}:${app[1]}${path}`;
+  document.title = app[0] + " - Pi-Nomad";
+  document.getElementById("name").textContent = app[0];
+  document.getElementById("out").href = url;
+  const f = document.createElement("iframe");
+  f.title = app[0]; f.src = url; f.allow = "fullscreen; clipboard-read; clipboard-write";
+  document.body.appendChild(f);
+} else {
+  document.getElementById("out").remove();
+  const m = document.createElement("div"); m.id = "msg";
+  m.innerHTML = 'That app is not part of this deck. <a href="/">Back to the dashboard</a>';
+  document.body.appendChild(m);
+}
+</script>
+</body></html>

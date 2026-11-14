@@ -46,7 +46,7 @@ function draw() {
   }).join("");
 }
 (async () => {
-  $("files").href = `http://${location.hostname}:8083/books/`;
+  $("files").href = appUrl("files", "/books/");
   try { all = await api("/api/books"); } catch (e) { all = []; }
   $("empty").style.display = all.length ? "none" : "block";
   $("q").oninput = draw; draw();
