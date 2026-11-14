@@ -36,6 +36,10 @@ Then open `http://<pi>.local/`, or `http://10.42.0.1/` when you are joined to th
 
 The hotspot takes over the Pi's Wi-Fi, so start it over Ethernet or with a screen and keyboard. It comes back by itself after a restart.
 
+## Moving to an SSD
+
+A Pi 5 with an NVMe SSD HAT runs much faster and avoids SD card wear. `tools/move-to-ssd.sh` copies the whole deck onto the SSD and prepares it to boot; afterwards shut down, take the SD card out and power on. Keep the old card as a spare: put it back in and the Pi boots from it as before. Details are in the script. The space figures below were written for the original 128 GB card.
+
 ## Storage (128GB SD card)
 
 The card has about 96GB free after install. All 7 collections together come to about 99GB, so they won't all fit. Pick one Wikipedia: every other collection plus the 53GB full text comes to about 85GB. The 127GB Wikipedia with images doesn't fit. The workload is mostly reads, which SD cards handle well. Things to do:

@@ -1,6 +1,6 @@
 # Pi-NOMAD: handoff notes for Claude Code
 
-Offline-first knowledge server for a **Raspberry Pi 5 (4 GB, arm64, 128 GB SD card, about 96 GB free after install)** inside a Pelican-case cyberdeck.
+Offline-first knowledge server for a **Raspberry Pi 5 (4 GB, arm64), now booting from a 256 GB NVMe SSD (about 197 GB free)** inside a Pelican-case cyberdeck.
 It is modeled on Project NOMAD (https://github.com/Crosstalk-Solutions/project-nomad) **without the AI stack**.
 Owner: Mike, who runs a 3D printing and printer repair business in Wayne, Michigan. Keep answers plain and practical.
 
@@ -22,6 +22,7 @@ Owner: Mike, who runs a 3D printing and printer repair business in Wayne, Michig
   - `Dockerfile`: 3 stages: Go builds `pmtiles`; Node fetches maplibre-gl@5, pmtiles@4, @protomaps/basemaps@5 plus Protomaps fonts/sprites from GitHub; Python runs the app.
   - `tests/test_backend.py`: 68 unit tests. Run: `cd command-center && python3 tests/test_backend.py`
 - `kolibri/Dockerfile`: Kolibri 0.19.5 from PyPI on `python:3.12-slim` (plus `iproute2`). There is no current upstream Docker image (Docker Hub ones are 6-7 years old). Data in `/srv/nomad/kolibri`. Ports 8085 (app) and 8086 (zipped interactive lessons) must be published with unchanged numbers. Kolibri sends `X-Frame-Options: DENY`, so its tile opens in a new tab and it is not in `app.html`. It has its own accounts and first-run setup, which the owner does himself. Measured on the Pi 2026-11-14 in a throwaway container: 60 s build, 4 s start, about 130 MB resident idle, image about 700 MB. Not measured: memory with lessons loaded and learners active.
+- `tools/move-to-ssd.sh` moves the whole system from the SD card to an NVMe SSD (`--check` is a dry run; the real run needs sudo and the word ERASE). It repartitions the SSD like a Pi OS card (512 MB boot FAT32 + ext4), rsyncs `/` and `/boot/firmware` with the SD card only read, and rewrites the disk ID (`PARTUUID`) in the copy's `cmdline.txt` and `fstab`. Docker is stopped for the copy, so anything changed afterwards stays on the SD card only. The bootloader order is `0xf461` (SD, then NVMe, then USB), so the Pi boots from the SSD only when no SD card is fitted.
 - `install.sh` (Docker + data dirs + `docker compose up -d --build`), `hotspot.sh` (Wi-Fi AP via NetworkManager).
 - Data lives in `/srv/nomad/{zim,maps,notes,books,kolibri}`. Command-center mounts `zim` and `maps` writable, the rest read-only, plus the `nomad-config` volume at `/config`.
 - `.gitattributes` forces LF line endings. Keep it: `install.sh` copied to the Pi with Windows line endings will not run.
@@ -52,7 +53,7 @@ Tested 2026-11-09 on Docker Desktop (amd64), full `docker compose` stack with da
 
 Windows bind mounts hide ownership problems. To test permissions, use a Linux path such as `NOMAD_DATA=/tmp/nomad-test`, created as root.
 
-Tested 2026-11-09 on the real Pi 5 (4 GB, Debian 13 trixie, 192.168.1.26 on Wi-Fi): `install.sh` with Docker 29.9.3; all five containers running as arm64 with no errors in their logs; real ZIM download opened in Kiwix; real Detroit overview extract; dashboard and map viewer in a browser (fonts, sprites and tiles all served from the Pi); Notes and Files write and delete. Memory stayed at about 750 MB used with those small files. After a real reboot, all five apps, the ZIM and the map came back with no manual steps, within about 40 seconds of boot.
+Tested 2026-11-09 on the real Pi 5 (4 GB, Debian 13 trixie, 192.168.1.26 on Wi-Fi, then still on the SD card): `install.sh` with Docker 29.9.3; all five containers running as arm64 with no errors in their logs; real ZIM download opened in Kiwix; real Detroit overview extract; dashboard and map viewer in a browser (fonts, sprites and tiles all served from the Pi); Notes and Files write and delete. Memory stayed at about 750 MB used with those small files. After a real reboot, all five apps, the ZIM and the map came back with no manual steps, within about 40 seconds of boot.
 
 Since then the owner downloaded 11 libraries (14 GB, largest 3.7 GB) and a 1.1 GB detailed Michigan map on the Pi with no failures.
 
@@ -79,6 +80,8 @@ App start/stop 2026-11-14: unit-tested against a stand-in Docker socket; from a 
 Kolibri 2026-11-14: installed on the Pi through `install.sh`; the container came up, port 8085 redirects to its setup page, about 126 MB resident idle, six services shown on the dashboard, its folder hidden in Files, and its start/stop row locked behind the PIN. The owner does the first-run setup himself. Not yet tried: importing lessons, and memory with lessons in use.
 
 Clean-up pass 2026-11-14: on the Pi the map library went from 1,058 KB to 277 KB over the wire and repeat visits to images answer 304; an image built with the pinned versions ran the full UI in a preview. The Pi reported `throttled=0x80000` (it reached its soft temperature limit at some point since boot, during image builds): it has no fan. The desktop session costs about 130 MB of RAM but is what auto-mounts USB drives for Backup.
+
+Hardware 2026-11-14: the owner fitted a Pi 5 active cooler and an NVMe HAT with a 256 GB WD SN530 that held a Dell Windows install (erased with his permission). `move-to-ssd.sh` copied 25 GB in under 5 minutes; the copy was mounted read-only and compared (file counts, sizes, SHA-256 of samples, boot files) before the SD card was removed. Booted from the SSD with no SD card: root on `/dev/nvme0n1p2`, 40 s to the desktop, all six apps up, libraries, 30 books, maps, place index, Kolibri and the PIN intact, 466 MB/s reads. The fan spins (2,826 rpm at 47 C) and `throttled=0x0`. The owner still has the original SD card as an untouched fallback (it holds the system as of the copy, so it is slightly out of date). Drive names: the SD card is `mmcblk0`, the SSD is `nvme0n1`.
 
 **Not yet tested:** the 14 GB and 53 GB Wikipedias on 4 GB RAM; the fan reading.
 
