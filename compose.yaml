@@ -64,7 +64,7 @@ services:
   # ---- Notes (markdown, no auth, like NOMAD) ----
   flatnotes:
     <<: *defaults
-    image: dullage/flatnotes:latest
+    image: dullage/flatnotes:v5        # major version, not "latest": no surprise jump to a v6
     ports: ["8081:8080"]
     environment:
       FLATNOTES_AUTH_TYPE: none
@@ -74,7 +74,7 @@ services:
   # ---- Data tools: encode/decode/hash/crypto ----
   cyberchef:
     <<: *defaults
-    image: ghcr.io/gchq/cyberchef:latest   # ships arm64; nginx inside listens on 8080
+    image: ghcr.io/gchq/cyberchef:10   # major version; ships arm64; nginx inside listens on 8080
     ports: ["8082:8080"]
 
   # ---- File manager for the data drive (ZIMs, PDFs, maps) ----

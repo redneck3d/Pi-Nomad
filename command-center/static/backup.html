@@ -83,7 +83,7 @@ $("go").onclick = async () => {
   refresh();
 };
 $("files").href = appUrl("files");
-refresh(); setInterval(refresh, 4000);
+every(refresh, 4000);
 watchJobs("backup", $("jobs"), refresh);
 </script>
 </body></html>

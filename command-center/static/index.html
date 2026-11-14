@@ -240,8 +240,8 @@ async function refresh() {
   } catch (e) { renderApps({}); }
 }
 Admin.mount($("admin"));
-buildApps(); refresh(); setInterval(refresh, 10000);
-refreshSystem(); setInterval(refreshSystem, 5000);
+buildApps(); every(refresh, 10000);
+every(refreshSystem, 5000);
 loadPower();
 </script>
 </body>

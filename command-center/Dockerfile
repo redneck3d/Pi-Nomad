@@ -1,6 +1,7 @@
 # --- 1. pmtiles CLI (used to cut regional map extracts). Built natively for arm64. ---
 FROM golang:1-alpine AS pmtiles
-RUN go install github.com/protomaps/go-pmtiles@latest \
+# Pinned, so a rebuild months from now gives the same tool. v1.31.2 was the newest on 2026-11-14.
+RUN go install github.com/protomaps/go-pmtiles@v1.31.2 \
  && mv /go/bin/go-pmtiles /pmtiles
 
 # --- 2. Map viewer libraries and offline fonts/icons ---

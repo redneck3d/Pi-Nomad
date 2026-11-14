@@ -721,6 +721,28 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(self.post("/api/zim/rescan", b"[1, 2]", JSON), 400)
         self.assertEqual(self.post("/api/maps/extract", json.dumps({"region": "custom", "detail": "overview"}).encode(), JSON), 400)
 
+    def test_pages_are_compressed_and_cached(self):
+        import gzip
+        raw = open(os.path.join(app.STATIC, "style.css"), "rb").read()
+        r = self.get("/style.css", {"Accept-Encoding": "gzip, deflate"})
+        self.assertEqual((r.headers["Content-Encoding"], r.headers["Cache-Control"]), ("gzip", "no-cache"))
+        packed = r.read()
+        self.assertEqual(gzip.decompress(packed), raw)
+        self.assertLess(len(packed), len(raw) // 2)
+        self.assertEqual(int(r.headers["Content-Length"]), len(packed))
+        plain = self.get("/style.css")                                   # a client that cannot unpack gets it plain
+        self.assertIsNone(plain.headers["Content-Encoding"])
+        self.assertEqual(plain.read(), raw)
+        again = self.get("/style.css", {"If-None-Match": r.headers["ETag"]})
+        self.assertEqual(again.code, 304)                                # unchanged: nothing is sent again
+        self.assertEqual(self.get("/", {"Accept-Encoding": "gzip"}).headers["Content-Encoding"], "gzip")
+        os.makedirs(os.path.join(app.STATIC, "img"), exist_ok=True)
+        logo = self.get("/img/mark.png", {"Accept-Encoding": "gzip"})
+        if logo.code == 200:                                             # images: kept for a day, never re-compressed
+            self.assertEqual((logo.headers["Cache-Control"], logo.headers["Content-Encoding"]), ("max-age=86400", None))
+        for p in ["/../app.py", "/%2e%2e/app.py", "/nope.css"]:
+            self.assertEqual(self.get(p).code, 404, p)
+
     def test_folders_are_not_listed(self):
         os.makedirs(os.path.join(app.STATIC, "img"), exist_ok=True)
         self.assertEqual(self.get("/img/").code, 404)

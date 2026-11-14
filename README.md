@@ -122,8 +122,10 @@ Review fixes, Backup, Search, and the Shut down and Restart buttons were each te
 
 ## Next steps
 
-1. Finish the Pi checks: hotspot, real books, admin PIN.
-2. Command Center: updates.
+1. Confirm the hotspot comes back by itself after a restart.
+2. Add Kolibri accounts and progress to the backup.
+3. Tell the owner when newer libraries or maps are available.
+4. Meshtastic radios (waiting on hardware).
 
 ## Notes
 

@@ -71,7 +71,10 @@ touch "$POWER_DIR/helper-installed"
 
 echo "==> Installing stack to $INSTALL_DIR"
 mkdir -p "$INSTALL_DIR"
-cp -r "$SRC_DIR/compose.yaml" "$SRC_DIR/command-center" "$SRC_DIR/kolibri" "$INSTALL_DIR/"
+if [[ "$SRC_DIR" != "$INSTALL_DIR" ]]; then
+  rm -rf "$INSTALL_DIR/command-center" "$INSTALL_DIR/kolibri"    # no stale files from older versions
+  cp -r "$SRC_DIR/compose.yaml" "$SRC_DIR/command-center" "$SRC_DIR/kolibri" "$INSTALL_DIR/"
+fi
 echo "NOMAD_DATA=$NOMAD_DATA" > "$INSTALL_DIR/.env"
 
 echo "==> Starting services"

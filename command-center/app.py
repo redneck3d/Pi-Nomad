@@ -3,6 +3,7 @@
 Serves the dashboard, the ZIM and map managers, offline map files (with HTTP Range
 support, which PMTiles needs), and a small JSON API.
 """
+import gzip
 import http.cookies
 import json
 import os
@@ -28,6 +29,12 @@ DATA = os.environ.get("NOMAD_DATA", "/data")
 STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 FOLDERS = ["zim", "maps", "notes", "books", "kolibri"]
 MAX_BODY = 64 * 1024     # our JSON requests are tiny; refuse anything that is not
+# Text files shrink to about a quarter when compressed (the map library alone is 1 MB), which
+# matters on a hotspot. The result is kept in memory, keyed by the file's date and size.
+COMPRESS = (".js", ".css", ".html", ".svg", ".json")
+# Files that only change when the deck is updated: browsers may keep them for a day without asking.
+KEEP = ("/img/", "/fonts/", "/maps/lib/", "/maps/assets/")
+_packed = {}
 
 _cache = {"t": 0.0, "sizes": {}}
 
@@ -132,6 +139,56 @@ class Handler(SimpleHTTPRequestHandler):
             return True
         return urllib.parse.urlparse(origin).netloc == self.headers.get("Host")
 
+    def _static(self, url_path, head_only=False):
+        """Serve a file from static/ with compression and caching. False = not ours, use the stock handler."""
+        path = self.translate_path(url_path)             # the stock translation: cannot leave static/
+        if os.path.isdir(path):
+            if not url_path.endswith("/"):
+                return False                             # the stock handler redirects to add the slash
+            path = os.path.join(path, "index.html")
+        try:
+            st = os.stat(path)
+        except OSError:
+            return False
+        if not os.path.isfile(path):
+            return False
+        tag = f'"{int(st.st_mtime)}-{st.st_size}"'
+        keep = "max-age=86400" if url_path.startswith(KEEP) else "no-cache"   # no-cache = ask first, then reuse
+        if self.headers.get("If-None-Match") == tag:
+            self.send_response(304)
+            self.send_header("ETag", tag)
+            self.send_header("Cache-Control", keep)
+            self.end_headers()
+            return True
+        body = None
+        if path.endswith(COMPRESS) and "gzip" in self.headers.get("Accept-Encoding", ""):
+            hit = _packed.get(path)
+            if not hit or hit[0] != tag:
+                with open(path, "rb") as f:
+                    hit = _packed[path] = (tag, gzip.compress(f.read(), 6))
+            body = hit[1]
+        self.send_response(200)
+        self.send_header("Content-Type", self.guess_type(path))
+        self.send_header("Content-Length", str(len(body) if body is not None else st.st_size))
+        self.send_header("ETag", tag)
+        self.send_header("Cache-Control", keep)
+        if path.endswith(COMPRESS):
+            self.send_header("Vary", "Accept-Encoding")
+        if body is not None:
+            self.send_header("Content-Encoding", "gzip")
+        self.end_headers()
+        if head_only:
+            return True
+        try:
+            if body is not None:
+                self.wfile.write(body)
+            else:
+                with open(path, "rb") as f:
+                    shutil.copyfileobj(f, self.wfile, 1 << 16)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+        return True
+
     def list_directory(self, path):
         """No folder listings: only real files are served."""
         self.send_error(404)
@@ -218,7 +275,7 @@ class Handler(SimpleHTTPRequestHandler):
             data, ctype = books.cover(rel)
         except (ValueError, FileNotFoundError, OSError):
             return self._json({"error": "not found"}, 404)
-        self._bytes(data, ctype, [("Cache-Control", "max-age=3600")])
+        self._bytes(data, ctype, [("Cache-Control", "max-age=604800")])
 
     def _serve_file(self, path, ctype, head_only=False):
         size = os.path.getsize(path)
@@ -269,7 +326,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self._serve_map(head_only=True)
         if self.path.startswith("/books-data/"):
             return self._serve_book(head_only=True)
-        super().do_HEAD()
+        if not self._static(urllib.parse.urlparse(self.path).path, head_only=True):
+            super().do_HEAD()
 
     def do_GET(self):
         url = urllib.parse.urlparse(self.path)
@@ -321,7 +379,8 @@ class Handler(SimpleHTTPRequestHandler):
             return self._guard(find)
         if p == "/api/maps/list":
             return self._json(maps.list_maps())
-        super().do_GET()
+        if not self._static(p):
+            super().do_GET()
 
     def do_POST(self):
         p = urllib.parse.urlparse(self.path).path

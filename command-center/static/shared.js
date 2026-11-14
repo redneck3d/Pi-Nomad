@@ -7,6 +7,14 @@ const $ = id => document.getElementById(id);
 // Link to one of the other apps (library, notes, tools, files) shown under the Pi-Nomad bar.
 const appUrl = (app, path) => "/app.html?app=" + app + (path ? "&path=" + encodeURIComponent(path) : "");
 
+// Run fn now and every ms after, but not while the page is hidden: a forgotten tab on a phone
+// should not keep the Pi busy. It catches up as soon as the page is looked at again.
+function every(fn, ms) {
+  const run = () => { if (!document.hidden) fn(); };
+  run(); setInterval(run, ms);
+  document.addEventListener("visibilitychange", run);
+}
+
 async function api(path, body) {
   const res = await fetch(path, body === undefined ? {} : {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -39,6 +47,6 @@ function watchJobs(kind, el, onDone) {
       jobs.forEach(j => { if (seen[j.id] && seen[j.id] !== j.state && j.state === "done") onDone && onDone(); seen[j.id] = j.state; });
     } catch (e) { /* server restarting; try again */ }
   }
-  tick(); setInterval(tick, 2000);
+  every(tick, 2000);
 }
 async function cancelJob(id) { try { await api("/api/jobs/cancel", { id }); } catch (e) { alert(e.message); } }
