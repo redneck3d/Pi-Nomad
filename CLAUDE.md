@@ -6,7 +6,7 @@ Owner: Mike, who runs a 3D printing and printer repair business in Wayne, Michig
 
 ## Layout
 
-- `compose.yaml`: stack: `command-center` (built from `./command-center`), `kiwix`, `flatnotes`, `cyberchef`, `files` (Dufs), `kolibri` (built from `./kolibri`).
+- `compose.yaml`: stack: `command-center` (built from `./command-center`), `kiwix`, `flatnotes`, `cyberchef`, `files` (Dufs), `kolibri` (built from `./kolibri`), `mesh-bridge` + `meshmonitor` (Mesh Radio, port 8087).
 - `command-center/`: Python **stdlib-only** web app on port 80.
   - `app.py` router and Range-capable `/maps-data/` file server; `zim.py` Kiwix catalog search, resumable downloads, `library.xml` writer; `maps.py` Protomaps region extracts via the `pmtiles` CLI; `jobs.py` background job registry.
   - `books.py` bookshelf: lists EPUB/PDF under `/data/books` (read-only mount), serves EPUB chapters straight out of the zip at `/books-read/<book>.epub/<member>` with a no-scripts CSP, PDFs at `/books-data/`. Pages: `static/books/index.html`, `static/books/read.html`. Tested with generated EPUB 2/3 files only, not real books yet.
@@ -24,7 +24,7 @@ Owner: Mike, who runs a 3D printing and printer repair business in Wayne, Michig
 - `kolibri/Dockerfile`: Kolibri 0.19.5 from PyPI on `python:3.12-slim` (plus `iproute2`). There is no current upstream Docker image (Docker Hub ones are 6-7 years old). Data in `/srv/nomad/kolibri`. Ports 8085 (app) and 8086 (zipped interactive lessons) must be published with unchanged numbers. Kolibri sends `X-Frame-Options: DENY`, so its tile opens in a new tab and it is not in `app.html`. It has its own accounts and first-run setup, which the owner does himself. Measured on the Pi 2026-11-14 in a throwaway container: 60 s build, 4 s start, about 130 MB resident idle, image about 700 MB. Not measured: memory with lessons loaded and learners active.
 - `tools/move-to-ssd.sh` moves the whole system from the SD card to an NVMe SSD (`--check` is a dry run; the real run needs sudo and the word ERASE). It repartitions the SSD like a Pi OS card (512 MB boot FAT32 + ext4), rsyncs `/` and `/boot/firmware` with the SD card only read, and rewrites the disk ID (`PARTUUID`) in the copy's `cmdline.txt` and `fstab`. Docker is stopped for the copy, so anything changed afterwards stays on the SD card only. The bootloader order is `0xf461` (SD, then NVMe, then USB), so the Pi boots from the SSD only when no SD card is fitted.
 - `install.sh` (Docker + data dirs + `docker compose up -d --build`), `hotspot.sh` (Wi-Fi AP via NetworkManager).
-- Data lives in `/srv/nomad/{zim,maps,notes,books,kolibri}`. Command-center mounts `zim` and `maps` writable, the rest read-only, plus the `nomad-config` volume at `/config`.
+- Data lives in `/srv/nomad/{zim,maps,notes,books,kolibri,mesh}`. Command-center mounts `zim` and `maps` writable, the rest read-only, plus the `nomad-config` volume at `/config`.
 - `.gitattributes` forces LF line endings. Keep it: `install.sh` copied to the Pi with Windows line endings will not run.
 
 ## Hard constraints (verified 2026-11-08, don't break these)
@@ -83,12 +83,20 @@ Clean-up pass 2026-11-14: on the Pi the map library went from 1,058 KB to 277 KB
 
 Hardware 2026-11-14: the owner fitted a Pi 5 active cooler and an NVMe HAT with a 256 GB WD SN530 that held a Dell Windows install (erased with his permission). `move-to-ssd.sh` copied 25 GB in under 5 minutes; the copy was mounted read-only and compared (file counts, sizes, SHA-256 of samples, boot files) before the SD card was removed. Booted from the SSD with no SD card: root on `/dev/nvme0n1p2`, 40 s to the desktop, all six apps up, libraries, 30 books, maps, place index, Kolibri and the PIN intact, 466 MB/s reads. The fan spins (2,826 rpm at 47 C) and `throttled=0x0`. The owner still has the original SD card as an untouched fallback (it holds the system as of the copy, so it is slightly out of date). Drive names: the SD card is `mmcblk0`, the SSD is `nvme0n1`.
 
+Mesh Radio 2026-11-15: a Heltec WiFi LoRa 32 V4 (plain V4, USB ID `303a:1001`, shows up as `/dev/ttyACM0`, Meshtastic 2.7.10) is plugged into the Pi. `mesh-bridge` (`ghcr.io/yeraze/meshtastic-serial-bridge:1.1.4`, socat serial to TCP 4403) and `meshmonitor` (`ghcr.io/yeraze/meshmonitor:4.17.3`, about 470 MB resident) were installed through `install.sh`; MeshMonitor synced 14 nodes from the radio, answers on every address, and recovered by itself when only the bridge was restarted. Things learned the hard way:
+- The bridge shares all of `/dev` with `device_cgroup_rules` for majors 166 and 188, and reads `/dev/pi-nomad-radio`, a udev symlink `install.sh` creates for common Meshtastic USB vendors. A fixed `devices:` entry would stop the container from starting when the radio is unplugged.
+- MeshMonitor answers 500 to any browser address not in `ALLOWED_ORIGINS`; `*` works. `COOKIE_SECURE=false` is needed on plain HTTP. `IFRAME_ALLOWED_ORIGINS=*` replaces its `X-Frame-Options: DENY`, which is why it can sit in `app.html`.
+- MeshMonitor keeps the radio's address in its database (`sources.config`), seeded from `MESHTASTIC_NODE_IP` only on first run. Renaming the bridge service later means editing that row or the Sources page.
+- Once, right after the reinstall, the sync stalled with no data until bridge and MeshMonitor were restarted in that order; the radio had re-enumerated on USB. Not reproduced since.
+- `docker stats` shows 0 B on this Pi (memory cgroup off); use `docker top <name> -o pid,rss,comm`.
+Not tested: login while inside the top-bar frame (owner's account), sending, unplug/replug, offline map, GPS.
+
 **Not yet tested:** the 14 GB and 53 GB Wikipedias on 4 GB RAM; the fan reading.
 
 ## Next work, in order
 
 1. Finish the Pi checks above: hotspot after a reboot.
-2. Meshtastic (researched 2026-11-09, nothing built): MeshMonitor plus its serial bridge for USB radios; open questions are offline map tiles and memory use.
+2. Mesh Radio follow-ups: offline map inside MeshMonitor (it wants XYZ tile URLs, not PMTiles, and its page security rules list the allowed tile hosts), GPS (the radio reported no position), a real unplug/replug test, sending a message, and adding `/srv/nomad/mesh` to the backup.
 3. First-run setup wizard; auto-update option.
 ## Working style
 

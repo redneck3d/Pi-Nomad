@@ -13,6 +13,7 @@ An offline-first knowledge server for a Raspberry Pi 5, modeled on [Project NOMA
 | Offline maps (ProtoMaps) | Viewer at `/maps/`, region manager at `/maps/manage.html` | Tested in Docker |
 | Content downloads (ZIM manager) | `/zim.html`: collections, catalog search, resumable downloads, delete | Tested in Docker |
 | Education (Kolibri) | `kolibri`, built from the Kolibri Python package (no current upstream image) | Installed and running on the Pi; lesson import not yet tried |
+| Mesh radio (not in NOMAD) | `meshmonitor` + `mesh-bridge`: [MeshMonitor](https://github.com/yeraze/meshmonitor) for a USB Meshtastic radio | Running on the Pi with a Heltec V4; sending, offline map and GPS not yet tested |
 | Your own books (not in NOMAD) | Bookshelf at `/books/`: lists EPUB and PDF files from `/srv/nomad/books`, built-in EPUB reader | Tested on the Pi with 30 real books |
 | System info | System panel on the dashboard: temperature, fan, processor, memory, uptime, drive writes, clock check, power and heat warnings | Checked on the real Pi except the fan reading (no fan fitted) |
 | Admin lock (not in NOMAD) | Optional admin PIN: reading stays open, downloads, deletes, backup and power need the PIN | Tested on the Pi |
@@ -71,6 +72,10 @@ The search box on the dashboard looks through every library, your notes and your
 ## Education (Kolibri)
 
 The Education tile opens Kolibri, an offline learning platform with courses such as Khan Academy. It has its own accounts: the first time you open it, it walks you through a short setup and has you create an admin user. Lessons are added from inside Kolibri, by download while you have internet or from a USB drive, and they are large (tens of GB for all of Khan Academy), so pick subjects. It opens in its own browser tab because it does not allow being shown under the Pi-Nomad bar. Its data lives in `/srv/nomad/kolibri` and is not part of the USB backup.
+
+## Mesh Radio (Meshtastic)
+
+Plug a Meshtastic radio into one of the Pi's USB ports (antenna on first) and open **Mesh Radio** on the dashboard. It is [MeshMonitor](https://github.com/yeraze/meshmonitor): messages, the list of radios heard, and a map. It has its own login, separate from the admin PIN: the first time it is `admin` / `changeme`, and it asks you to change that. The installer gives the radio the fixed name `/dev/pi-nomad-radio`, so it can be unplugged and plugged back in. Its data is in `/srv/nomad/mesh`. The map inside MeshMonitor needs internet for now.
 
 ## Finding places on the map
 
