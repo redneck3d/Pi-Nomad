@@ -232,6 +232,12 @@ class ZimTests(unittest.TestCase):
             self.assertTrue(p["items"], p["id"])
             for name, flavour in p["items"]:
                 self.assertTrue(name and (flavour is None or flavour in ("nopic", "mini", "maxi")), (p["id"], name))
+                self.assertNotIn(name, zim.NEVER_OFFER, p["id"])                      # nothing too big for the deck
+            self.assertEqual(len(set(p["items"])), len(p["items"]), p["id"])          # no library listed twice
+            self.assertTrue(p["title"] and p["desc"].startswith("About "), p["id"])   # every pack states its size
+        ids = [p["id"] for p in zim.PRESETS]
+        self.assertEqual(len(set(ids)), len(ids))
+        self.assertLessEqual({"gutenberg_en_all", "survivorlibrary.com_en_all"}, zim.NEVER_OFFER)
 
     def test_register_rescan_delete(self):
         p = os.path.join(zim.ZIM_DIR, "hand_copied.zim")

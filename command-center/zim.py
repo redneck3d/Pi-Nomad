@@ -26,7 +26,8 @@ _lib_lock = threading.Lock()
 # Presets look up the newest version at click time, so no dated URLs live here.
 # Entries are (catalog name, flavour or None). Kiwix publishes one *name* in several flavours
 # (e.g. wikipedia_en_all as nopic / mini / maxi), so the flavour picks the variant.
-# Names verified against the live catalog on 2026-11-08; sizes are approximate.
+# Names verified against the live catalog on 2026-11-08 (the first seven) and 2026-11-15 (the rest);
+# sizes are approximate. wikiHow is not in the Kiwix catalog any more, so there is no pack for it.
 PRESETS = [
     {"id": "starter", "title": "Starter kit",
      "desc": "About 1.2 GB: a 100-article Wikipedia sampler plus medical, water, food and disaster guides.",
@@ -42,17 +43,45 @@ PRESETS = [
      "desc": "About 3.6 GB: iFixit repair guides.",
      "items": [("ifixit_en_all", None)]},
     {"id": "medical", "title": "Medical reference",
-     "desc": "About 3.4 GB: Wikipedia medicine, MDWiki, NHS medicines and a field medical library.",
-     "items": [("wikipedia_en_medicine", "nopic"), ("mdwiki_en_all", "maxi"),
-               ("nhs.uk_en_medicines", None), ("zimgit-medicine_en", None)]},
+     "desc": "About 5.5 GB: Wikipedia medicine, MDWiki, MedlinePlus, NHS medicines, military and field "
+             "medicine, and a vet reference for animals.",
+     "items": [("wikipedia_en_medicine", "nopic"), ("mdwiki_en_all", "maxi"), ("medlineplus.gov_en_all", None),
+               ("nhs.uk_en_medicines", None), ("zimgit-medicine_en", None),
+               ("irp.fas.org_en_military-medicine", None), ("wikivet.net_en_all", "maxi")]},
     {"id": "preparedness", "title": "Preparedness",
      "desc": "About 6 GB: Ready.gov and a self-reliance library.",
      "items": [("ready.gov_en_all", None), ("lrnselfreliance_en_all", None)]},
     {"id": "reference", "title": "Reference shelf",
      "desc": "About 18 GB: Wikibooks and Wiktionary, no images.",
      "items": [("wikibooks_en_all", "nopic"), ("wiktionary_en_all", "nopic")]},
+    {"id": "skills", "title": "Practical skills Q&A",
+     "desc": "About 3.9 GB: answered questions on home repair, gardening, car mechanics, cooking, "
+             "the outdoors, woodworking and living with less.",
+     "items": [("diy.stackexchange.com_en_all", None), ("gardening.stackexchange.com_en_all", None),
+               ("mechanics.stackexchange.com_en_all", None), ("cooking.stackexchange.com_en_all", None),
+               ("outdoors.stackexchange.com_en_all", None), ("woodworking.stackexchange.com_en_all", None),
+               ("sustainability.stackexchange.com_en_all", None)]},
+    {"id": "electronics", "title": "Radio & electronics Q&A",
+     "desc": "About 5 GB: answered questions on ham radio, electronics, Raspberry Pi, Arduino and 3D printing.",
+     "items": [("ham.stackexchange.com_en_all", None), ("electronics.stackexchange.com_en_all", None),
+               ("raspberrypi.stackexchange.com_en_all", None), ("arduino.stackexchange.com_en_all", None),
+               ("3dprinting.stackexchange.com_en_all", None)]},
+    {"id": "homestead", "title": "Homestead & low-tech",
+     "desc": "About 1.9 GB: Appropedia, the CD3WD development library, energypedia (off-grid power) and knots.",
+     "items": [("appropedia_en_all", "maxi"), ("cd3wdproject.org_en_all", None),
+               ("energypedia_en_all", "nopic"), ("zimgit-knots_en", None)]},
+    {"id": "army", "title": "Army manuals",
+     "desc": "About 8.2 GB: US Army field manuals and publications.",
+     "items": [("armypubs_en_all", None)]},
+    {"id": "videos", "title": "Preparedness videos",
+     "desc": "About 15.6 GB: video channels on prepping, food storage, winter and bug-out planning.",
+     "items": [("urban-prepper_en_all", None), ("trueprepper.com_en_all", None), ("s2underground_en_all", None),
+               ("canadian-prepper_en_winterprepping", None), ("canadian-prepper_en_preppingfood", None),
+               ("canadian-prepper_en_bugoutconcepts", None)]},
 ]
-NEVER_OFFER = {"gutenberg_en_all"}   # 221 GB; the smaller gutenberg_en_lcc-* slices are fine
+# Too big for the deck: Gutenberg is 221 GB (the smaller gutenberg_en_lcc-* slices are fine),
+# the Survivor Library 220 GB.
+NEVER_OFFER = {"gutenberg_en_all", "survivorlibrary.com_en_all"}
 
 
 # ---------- catalog ----------
