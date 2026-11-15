@@ -753,6 +753,11 @@ class ServerTests(unittest.TestCase):
         logo = self.get("/img/mark.png", {"Accept-Encoding": "gzip"})
         if logo.code == 200:                                             # images: kept for a day, never re-compressed
             self.assertEqual((logo.headers["Cache-Control"], logo.headers["Content-Encoding"]), ("max-age=86400", None))
+        comms = self.get("/comms.html").read().decode()                 # the Comms tools page ships with the app
+        self.assertIn('SOS', comms)
+        self.assertIn('S:"..."', comms)
+        self.assertIn('O:"---"', comms)
+        self.assertIn("/comms.html", self.get("/").read().decode())      # and the dashboard links to it
         for p in ["/../app.py", "/%2e%2e/app.py", "/nope.css"]:
             self.assertEqual(self.get(p).code, 404, p)
 

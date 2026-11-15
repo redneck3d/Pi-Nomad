@@ -77,6 +77,10 @@ The Education tile opens Kolibri, an offline learning platform with courses such
 
 Plug a Meshtastic radio into one of the Pi's USB ports (antenna on first) and open **Mesh Radio** on the dashboard. It is [MeshMonitor](https://github.com/yeraze/meshmonitor): messages, the list of radios heard, and a map. It has its own login, separate from the admin PIN: the first time it is `admin` / `changeme`, and it asks you to change that. The installer gives the radio the fixed name `/dev/pi-nomad-radio`, so it can be unplugged and plugged back in. Its data is in `/srv/nomad/mesh`. The map inside MeshMonitor needs internet, so the deck's own **Maps** page shows the radios instead: a **Mesh radios** button appears there, and every radio that has shared a position is marked on the offline map (tap one for its name, hops and battery).
 
+## Comms tools
+
+`/comms.html`, linked from the dashboard, runs entirely in the browser: a Morse code translator both ways with sound, a flashing bar and a tap key; emergency phrases in Spanish, French, German and Italian (not checked by a native speaker); US frequencies worth knowing (CB, FRS/GMRS, MURS, NOAA weather, ham calling); and the spelling alphabet with radio words. There is no repeater directory: RepeaterBook does not allow its data to be bundled offline without written permission.
+
 ## Finding places on the map
 
 The map has a search box for towns, streets, highways, parks, lakes and other named places. It works with no internet: the names come out of the map file you already downloaded. After a region is saved the deck reads its names once (about a minute for all of Michigan in full detail), and maps saved earlier are read the next time the deck starts. Streets are listed nearest-first with the town they are in, and the usual short forms work (`main st`, `mt clemens`, `telegraph rd`). There are no house numbers, so it finds the street, not the address.

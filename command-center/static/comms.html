@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Comms tools - Pi-Nomad</title><meta name="theme-color" content="#141c2d">
+<link rel="icon" type="image/png" href="/img/favicon.png"><link rel="apple-touch-icon" href="/img/apple-touch-icon.png"><link rel="stylesheet" href="/style.css">
+<style>
+  /* Everything on this page runs in the browser: no internet and nothing asked of the Pi. */
+  .tabs { display:flex; flex-wrap:wrap; gap:.5rem; margin-bottom:1rem; }
+  .tabs button[aria-selected="true"] { border-color:var(--amber); color:var(--amber); }
+  section[hidden] { display:none; }
+  textarea { font:inherit; color:var(--txt); background:var(--bg-deep); border:1px solid var(--line); border-radius:10px; padding:.6rem .8rem; width:100%; min-height:5.5rem; resize:vertical; }
+  .code { font-family:ui-monospace, Consolas, monospace; font-size:1.15rem; letter-spacing:.08em; overflow-wrap:anywhere; }
+  label.f { display:block; margin:.9rem 0 .3rem; color:var(--mut); font-size:.92rem; }
+  .row { display:flex; flex-wrap:wrap; align-items:center; gap:.6rem; }
+  #lamp { height:4.5rem; border-radius:12px; border:1px solid var(--line); background:var(--bg-deep); margin-top:.9rem; }
+  #lamp.on { background:#fff7d6; box-shadow:0 0 24px #eaa640; }
+  #key { min-height:5rem; width:100%; font-size:1.1rem; touch-action:none; user-select:none; -webkit-user-select:none; }
+  #key.down { background:var(--amber); color:#21170a; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { text-align:left; padding:.45rem .6rem; border-top:1px solid var(--line); vertical-align:top; }
+  th { color:var(--mut); font-weight:500; font-size:.9rem; border-top:0; }
+  td.n { font-family:ui-monospace, Consolas, monospace; white-space:nowrap; }
+  .scroll { overflow-x:auto; }
+  .phrase { padding:.7rem 0; border-top:1px solid var(--line); }
+  .phrase:first-child { border-top:0; }
+  .phrase .en { color:var(--mut); font-size:.92rem; }
+  .phrase .tr { display:flex; align-items:center; gap:.6rem; font-size:1.2rem; font-weight:600; }
+  .phrase button { min-height:36px; padding:.2rem .6rem; font-size:.85rem; flex:none; }
+  .grid2 { display:grid; grid-template-columns:repeat(auto-fill, minmax(8.5rem, 1fr)); gap:.3rem .9rem; }
+  .grid2 b { color:var(--amber); display:inline-block; min-width:1.4rem; }
+</style></head>
+<body>
+<nav class="top"><a class="brand" href="/"><img src="/img/mark.png" alt="" width="192" height="145"><span>Pi-<b>Nomad</b></span></a>
+  <div class="links"><a href="/">Dashboard</a><a href="/search.html">Search</a><a href="/maps/">Open map</a><a href="/app.html?app=mesh">Mesh Radio</a><a aria-current="page" href="/comms.html">Comms tools</a></div></nav>
+<hr class="bar-line">
+<div class="wrap">
+  <div class="page-head">
+    <h1>Comms tools</h1>
+    <p class="sub">Morse code, emergency phrases in other languages, radio frequencies worth knowing, and the spelling alphabet. All of it works with no internet.</p>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button role="tab" data-tab="morse" aria-selected="true">Morse code</button>
+    <button role="tab" data-tab="phrases" aria-selected="false">Phrases</button>
+    <button role="tab" data-tab="freq" aria-selected="false">Frequencies</button>
+    <button role="tab" data-tab="spell" aria-selected="false">Spelling &amp; radio words</button>
+  </div>
+
+  <!-- ================= Morse ================= -->
+  <section id="morse">
+    <div class="panel">
+      <label class="f" for="text" style="margin-top:0">Plain text</label>
+      <textarea id="text" placeholder="Type a message" maxlength="600">SOS</textarea>
+      <label class="f" for="code">Morse (dots and dashes; a space between letters, a slash between words)</label>
+      <textarea id="code" class="code" placeholder="... --- ..." maxlength="4000" spellcheck="false"></textarea>
+      <p class="mut" id="unknown" style="margin:.4rem 0 0"></p>
+      <div class="row" style="margin-top:.9rem">
+        <button class="go" id="play">Play</button><button id="stop">Stop</button>
+        <label class="row" for="wpm">Speed <input id="wpm" type="range" min="5" max="25" value="12" style="min-height:0;padding:0"> <span id="wpmOut">12 words a minute</span></label>
+        <label class="row"><input type="checkbox" id="sound" checked style="min-height:0;width:1.1rem;height:1.1rem"> Sound</label>
+      </div>
+      <div id="lamp" aria-hidden="true"></div>
+      <p class="mut" style="margin-bottom:0">The bar flashes with the code, so it can be read across a room or signalled with the screen at night.</p>
+    </div>
+    <h3>Tap it in</h3>
+    <div class="panel">
+      <p class="mut" style="margin-top:0">Hold the key short for a dot and long for a dash, at the speed set above. Pause to end a letter, pause longer to end a word. On a keyboard, use the space bar.</p>
+      <button id="key">Morse key</button>
+      <div class="row" style="margin-top:.7rem"><button id="clear">Clear</button></div>
+    </div>
+    <h3>The code</h3>
+    <div class="panel"><div class="grid2 code" id="chart" style="font-size:1rem"></div></div>
+  </section>
+
+  <!-- ================= Phrases ================= -->
+  <section id="phrases" hidden>
+    <div class="panel">
+      <div class="row"><label for="lang">Language</label>
+        <select id="lang"><option value="es">Spanish</option><option value="fr">French</option><option value="de">German</option><option value="it">Italian</option></select></div>
+      <p class="mut" style="margin-bottom:0">Show the screen to the other person, or press Say if this device has a voice for that language. These are simple, common wordings and have not been checked by a native speaker.</p>
+    </div>
+    <div id="plist"></div>
+  </section>
+
+  <!-- ================= Frequencies ================= -->
+  <section id="freq" hidden>
+    <div class="panel mut">Listening is always allowed. Transmitting has rules: FRS, MURS and CB need no licence, GMRS needs an FCC licence (one covers a family), and the ham bands need an amateur licence. These are United States channels.</div>
+    <h3>Call for help and listen for news</h3>
+    <div class="panel scroll"><table id="keyf"></table></div>
+    <h3>NOAA weather radio</h3>
+    <div class="panel scroll"><table id="wx"></table><p class="mut" style="margin-bottom:0">Forecasts and warnings around the clock. Try each until one is clear; which one you get depends on where you are.</p></div>
+    <h3>FRS and GMRS channels (the common two-way "walkie-talkie" radios)</h3>
+    <div class="panel scroll"><table id="frs"></table></div>
+    <h3>MURS channels</h3>
+    <div class="panel scroll"><table id="murs"></table></div>
+  </section>
+
+  <!-- ================= Spelling ================= -->
+  <section id="spell" hidden>
+    <div class="panel">
+      <label class="f" for="word" style="margin-top:0">Spell something out</label>
+      <input id="word" maxlength="60" placeholder="A name, call sign or street" style="width:100%">
+      <p id="spelled" style="font-size:1.15rem; margin-bottom:0"></p>
+    </div>
+    <h3>Spelling alphabet</h3>
+    <div class="panel"><div class="grid2" id="nato"></div></div>
+    <h3>Radio words</h3>
+    <div class="panel scroll"><table id="pro"></table></div>
+    <h3>Calling for help by voice</h3>
+    <div class="panel">
+      <p style="margin-top:0"><b>Life in danger:</b> say "Mayday, Mayday, Mayday", then who you are, where you are, what is wrong, how many people, and what help you need. Say it slowly, then listen, then repeat.</p>
+      <p style="margin-bottom:0"><b>Urgent but nobody is dying:</b> start with "Pan-pan, Pan-pan, Pan-pan" and give the same details.</p>
+    </div>
+  </section>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+
+// ---------- tabs ----------
+document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".tabs button").forEach(x => x.setAttribute("aria-selected", x === b));
+  ["morse", "phrases", "freq", "spell"].forEach(id => $(id).hidden = id !== b.dataset.tab);
+  stop();
+});
+
+// ---------- Morse ----------
+const MORSE = { A:".-", B:"-...", C:"-.-.", D:"-..", E:".", F:"..-.", G:"--.", H:"....", I:"..", J:".---", K:"-.-", L:".-..", M:"--",
+  N:"-.", O:"---", P:".--.", Q:"--.-", R:".-.", S:"...", T:"-", U:"..-", V:"...-", W:".--", X:"-..-", Y:"-.--", Z:"--..",
+  0:"-----", 1:".----", 2:"..---", 3:"...--", 4:"....-", 5:".....", 6:"-....", 7:"--...", 8:"---..", 9:"----.",
+  ".":".-.-.-", ",":"--..--", "?":"..--..", "'":".----.", "!":"-.-.--", "/":"-..-.", "(":"-.--.", ")":"-.--.-", "&":".-...",
+  ":":"---...", ";":"-.-.-.", "=":"-...-", "+":".-.-.", "-":"-....-", "_":"..--.-", '"':".-..-.", "$":"...-..-", "@":".--.-." };
+const UNMORSE = Object.fromEntries(Object.entries(MORSE).map(([k, v]) => [v, k]));
+
+function toMorse(text) {
+  const bad = new Set();
+  const out = text.toUpperCase().trim().split(/\s+/).filter(Boolean).map(w =>
+    [...w].map(ch => MORSE[ch] || (bad.add(ch), "")).filter(Boolean).join(" ")).filter(Boolean).join(" / ");
+  return { out, bad: [...bad] };
+}
+function fromMorse(code) {
+  const clean = code.replace(/[·•*]/g, ".").replace(/[–—_]/g, "-").replace(/\s{3,}|\|/g, " / ");
+  return clean.split("/").map(w => w.trim().split(/\s+/).filter(Boolean).map(s => UNMORSE[s] || "?").join("")).filter(Boolean).join(" ");
+}
+$("text").oninput = () => {
+  const r = toMorse($("text").value);
+  $("code").value = r.out;
+  $("unknown").textContent = r.bad.length ? "No Morse for: " + r.bad.join(" ") + " (left out)" : "";
+};
+$("code").oninput = () => { $("text").value = fromMorse($("code").value); $("unknown").textContent = ""; };
+$("wpm").oninput = () => $("wpmOut").textContent = $("wpm").value + " words a minute";
+const unit = () => 1.2 / +$("wpm").value;            // length of one dot in seconds (standard "PARIS" timing)
+
+let ctx, timers = [], nodes = [];
+function audio() {
+  try { ctx = ctx || new (window.AudioContext || window.webkitAudioContext)(); if (ctx.state === "suspended") ctx.resume(); } catch (e) { ctx = null; }
+  return ctx;
+}
+function beep(at, len) {                              // one tone with soft edges, so it does not click
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.frequency.value = 600; o.connect(g); g.connect(ctx.destination);
+  g.gain.setValueAtTime(0, at); g.gain.linearRampToValueAtTime(.35, at + .005);
+  g.gain.setValueAtTime(.35, at + len - .005); g.gain.linearRampToValueAtTime(0, at + len);
+  o.start(at); o.stop(at + len + .01); nodes.push(o);
+}
+function stop() {
+  timers.forEach(clearTimeout); timers = [];
+  nodes.forEach(o => { try { o.stop(); } catch (e) {} }); nodes = [];
+  $("lamp").classList.remove("on");
+}
+function play() {
+  stop();
+  const code = $("code").value.trim(), u = unit(), sound = $("sound").checked && audio();
+  let t = 0.05;                                        // seconds from now
+  const start = sound ? ctx.currentTime : 0;
+  for (const ch of code.replace(/\s*\/\s*/g, "/")) {
+    if (ch === "." || ch === "-") {
+      const len = ch === "." ? u : 3 * u;
+      if (sound) beep(start + t, len);
+      timers.push(setTimeout(() => $("lamp").classList.add("on"), t * 1000));
+      timers.push(setTimeout(() => $("lamp").classList.remove("on"), (t + len) * 1000));
+      t += len + u;                                    // one unit of silence inside a letter
+    } else if (ch === " ") t += 2 * u;                 // letters are three units apart in all
+    else if (ch === "/") t += 6 * u;                   // words are seven units apart in all
+  }
+}
+$("play").onclick = play; $("stop").onclick = stop;
+
+// tap key: press length decides dot or dash, the pause after decides letter or word
+let downAt = 0, keyTone = null, gapTimers = [];
+function keyDown(e) {
+  e.preventDefault(); if (downAt) return;
+  downAt = performance.now(); gapTimers.forEach(clearTimeout); gapTimers = [];
+  $("key").classList.add("down"); $("lamp").classList.add("on");
+  if ($("sound").checked && audio()) {
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.frequency.value = 600; g.gain.value = .3; o.connect(g); g.connect(ctx.destination); o.start(); keyTone = o;
+  }
+}
+function keyUp(e) {
+  e.preventDefault(); if (!downAt) return;
+  const held = (performance.now() - downAt) / 1000, u = unit(); downAt = 0;
+  $("key").classList.remove("down"); $("lamp").classList.remove("on");
+  if (keyTone) { try { keyTone.stop(); } catch (x) {} keyTone = null; }
+  $("code").value += held < 2 * u ? "." : "-";
+  $("text").value = fromMorse($("code").value);
+  gapTimers.push(setTimeout(() => { $("code").value += " "; }, 3 * u * 1000));
+  gapTimers.push(setTimeout(() => { $("code").value = $("code").value.trimEnd() + " / "; $("text").value = fromMorse($("code").value); }, 7 * u * 1000));
+}
+$("key").addEventListener("pointerdown", keyDown); $("key").addEventListener("pointerup", keyUp);
+$("key").addEventListener("pointerleave", e => { if (downAt) keyUp(e); });
+$("key").addEventListener("keydown", e => { if (e.code === "Space" && !e.repeat) keyDown(e); });
+$("key").addEventListener("keyup", e => { if (e.code === "Space") keyUp(e); });
+$("clear").onclick = () => { stop(); $("code").value = ""; $("text").value = ""; $("unknown").textContent = ""; };
+$("chart").innerHTML = Object.entries(MORSE).map(([k, v]) => `<span><b>${esc(k)}</b> ${v}</span>`).join("");
+$("text").oninput();
+
+// ---------- phrases ----------
+const VOICE = { es: "es-ES", fr: "fr-FR", de: "de-DE", it: "it-IT" };
+const PHRASES = [
+  ["Getting help", [
+    ["Help!", "¡Ayuda!", "Au secours !", "Hilfe!", "Aiuto!"],
+    ["I need help.", "Necesito ayuda.", "J'ai besoin d'aide.", "Ich brauche Hilfe.", "Ho bisogno di aiuto."],
+    ["Call an ambulance.", "Llame a una ambulancia.", "Appelez une ambulance.", "Rufen Sie einen Krankenwagen.", "Chiami un'ambulanza."],
+    ["Call the police.", "Llame a la policía.", "Appelez la police.", "Rufen Sie die Polizei.", "Chiami la polizia."],
+    ["Fire!", "¡Fuego!", "Au feu !", "Feuer!", "Al fuoco!"],
+    ["Do you speak English?", "¿Habla inglés?", "Parlez-vous anglais ?", "Sprechen Sie Englisch?", "Parla inglese?"],
+    ["I don't understand.", "No entiendo.", "Je ne comprends pas.", "Ich verstehe nicht.", "Non capisco."],
+    ["Please speak slowly.", "Hable despacio, por favor.", "Parlez lentement, s'il vous plaît.", "Bitte sprechen Sie langsam.", "Parli lentamente, per favore."],
+  ]],
+  ["Medical", [
+    ["I am hurt.", "Estoy herido.", "Je suis blessé.", "Ich bin verletzt.", "Sono ferito."],
+    ["He is not breathing.", "No respira.", "Il ne respire pas.", "Er atmet nicht.", "Non respira."],
+    ["She is bleeding.", "Ella está sangrando.", "Elle saigne.", "Sie blutet.", "Sta sanguinando."],
+    ["I need a doctor.", "Necesito un médico.", "J'ai besoin d'un médecin.", "Ich brauche einen Arzt.", "Ho bisogno di un medico."],
+    ["Where is the hospital?", "¿Dónde está el hospital?", "Où est l'hôpital ?", "Wo ist das Krankenhaus?", "Dov'è l'ospedale?"],
+    ["I am allergic to this.", "Soy alérgico a esto.", "Je suis allergique à cela.", "Ich bin dagegen allergisch.", "Sono allergico a questo."],
+    ["I am diabetic.", "Soy diabético.", "Je suis diabétique.", "Ich bin Diabetiker.", "Sono diabetico."],
+    ["I need medicine.", "Necesito medicina.", "J'ai besoin de médicaments.", "Ich brauche Medikamente.", "Ho bisogno di medicine."],
+    ["Where does it hurt?", "¿Dónde le duele?", "Où avez-vous mal ?", "Wo tut es weh?", "Dove le fa male?"],
+    ["Do not move.", "No se mueva.", "Ne bougez pas.", "Bewegen Sie sich nicht.", "Non si muova."],
+  ]],
+  ["Basic needs", [
+    ["I need water.", "Necesito agua.", "J'ai besoin d'eau.", "Ich brauche Wasser.", "Ho bisogno di acqua."],
+    ["Is this water safe to drink?", "¿Esta agua es potable?", "Cette eau est-elle potable ?", "Ist dieses Wasser trinkbar?", "Quest'acqua è potabile?"],
+    ["I need food.", "Necesito comida.", "J'ai besoin de nourriture.", "Ich brauche Essen.", "Ho bisogno di cibo."],
+    ["We need shelter.", "Necesitamos refugio.", "Nous avons besoin d'un abri.", "Wir brauchen eine Unterkunft.", "Abbiamo bisogno di un riparo."],
+    ["I am cold.", "Tengo frío.", "J'ai froid.", "Mir ist kalt.", "Ho freddo."],
+    ["Where is the bathroom?", "¿Dónde está el baño?", "Où sont les toilettes ?", "Wo ist die Toilette?", "Dov'è il bagno?"],
+    ["Can I charge my phone?", "¿Puedo cargar mi teléfono?", "Puis-je charger mon téléphone ?", "Kann ich mein Handy aufladen?", "Posso caricare il telefono?"],
+    ["How much does it cost?", "¿Cuánto cuesta?", "Combien ça coûte ?", "Wie viel kostet das?", "Quanto costa?"],
+  ]],
+  ["Finding your way", [
+    ["I am lost.", "Estoy perdido.", "Je suis perdu.", "Ich habe mich verirrt.", "Mi sono perso."],
+    ["Where am I?", "¿Dónde estoy?", "Où suis-je ?", "Wo bin ich?", "Dove sono?"],
+    ["Show me on the map.", "Muéstreme en el mapa.", "Montrez-moi sur la carte.", "Zeigen Sie es mir auf der Karte.", "Me lo mostri sulla mappa."],
+    ["Is it safe here?", "¿Es seguro aquí?", "Est-ce sûr ici ?", "Ist es hier sicher?", "È sicuro qui?"],
+    ["Which way is north?", "¿Hacia dónde está el norte?", "Où est le nord ?", "Wo ist Norden?", "Dov'è il nord?"],
+    ["I am looking for my family.", "Busco a mi familia.", "Je cherche ma famille.", "Ich suche meine Familie.", "Cerco la mia famiglia."],
+  ]],
+  ["People", [
+    ["Thank you.", "Gracias.", "Merci.", "Danke.", "Grazie."],
+    ["Please.", "Por favor.", "S'il vous plaît.", "Bitte.", "Per favore."],
+    ["Yes. / No.", "Sí. / No.", "Oui. / Non.", "Ja. / Nein.", "Sì. / No."],
+    ["We mean no harm.", "No queremos hacer daño.", "Nous ne voulons aucun mal.", "Wir wollen nichts Böses.", "Non vogliamo fare del male."],
+    ["There are four of us.", "Somos cuatro.", "Nous sommes quatre.", "Wir sind zu viert.", "Siamo in quattro."],
+    ["There are children with us.", "Hay niños con nosotros.", "Il y a des enfants avec nous.", "Wir haben Kinder dabei.", "Ci sono bambini con noi."],
+  ]],
+];
+const canSpeak = "speechSynthesis" in window;
+function drawPhrases() {
+  const i = ["es", "fr", "de", "it"].indexOf($("lang").value) + 1;
+  $("plist").innerHTML = PHRASES.map(([head, rows]) => `<h3>${esc(head)}</h3><div class="panel">` + rows.map(r =>
+    `<div class="phrase"><div class="tr"><span>${esc(r[i])}</span>${canSpeak ? `<button data-say="${esc(r[i])}">Say</button>` : ""}</div><div class="en">${esc(r[0])}</div></div>`).join("") + "</div>").join("");
+}
+$("lang").onchange = drawPhrases;
+$("plist").onclick = e => {
+  const b = e.target.closest("button[data-say]"); if (!b) return;
+  const u = new SpeechSynthesisUtterance(b.dataset.say); u.lang = VOICE[$("lang").value]; u.rate = .85;
+  speechSynthesis.cancel(); speechSynthesis.speak(u);
+};
+drawPhrases();
+
+// ---------- frequencies ----------
+const table = (id, head, rows, mono = 1) => $(id).innerHTML = "<tr>" + head.map(h => `<th>${esc(h)}</th>`).join("") + "</tr>"
+  + rows.map(r => "<tr>" + r.map((c, i) => `<td${i === mono ? ' class="n"' : ""}>${esc(c)}</td>`).join("") + "</tr>").join("");
+table("keyf", ["What", "Frequency", "Notes"], [
+  ["CB channel 9", "27.065 MHz", "Emergency channel. No licence."],
+  ["CB channel 19", "27.185 MHz", "Truckers and road conditions. No licence."],
+  ["FRS / GMRS channel 1", "462.5625 MHz", "Most common starting channel on family radios."],
+  ["GMRS channel 20", "462.6750 MHz", "Widely used for travel and emergency calling."],
+  ["Ham 2 metre calling", "146.520 MHz", "National simplex calling frequency (FM). Licence to transmit."],
+  ["Ham 70 cm calling", "446.000 MHz", "National simplex calling frequency (FM). Licence to transmit."],
+  ["Marine channel 16", "156.800 MHz", "Distress and calling on the water, watched by the Coast Guard."],
+  ["Aircraft emergency", "121.500 MHz", "Listen only unless you are in an aircraft."],
+  ["Meshtastic (this deck's radio)", "906.875 MHz", "The default LongFast channel in the US, in the 902 to 928 MHz band. No licence."],
+]);
+table("wx", ["Channel", "Frequency"], [162.400, 162.425, 162.450, 162.475, 162.500, 162.525, 162.550].map((f, i) => ["WX " + (i + 1), f.toFixed(3) + " MHz"]));
+const frs = [];
+for (let c = 1; c <= 22; c++) {
+  const f = c <= 7 ? 462.5625 + (c - 1) * .025 : c <= 14 ? 467.5625 + (c - 8) * .025 : 462.55 + (c - 15) * .025;
+  frs.push([String(c), f.toFixed(4) + " MHz", c >= 8 && c <= 14 ? "Low power only (half a watt)" : c <= 7 ? "FRS up to 2 watts; GMRS up to 5" : "FRS up to 2 watts; GMRS up to 50"]);
+}
+table("frs", ["Channel", "Frequency", "Notes"], frs);
+table("murs", ["Channel", "Frequency"], [151.820, 151.880, 151.940, 154.570, 154.600].map((f, i) => [String(i + 1), f.toFixed(3) + " MHz"]));
+
+// ---------- spelling ----------
+const NATO = { A:"Alfa", B:"Bravo", C:"Charlie", D:"Delta", E:"Echo", F:"Foxtrot", G:"Golf", H:"Hotel", I:"India", J:"Juliett", K:"Kilo", L:"Lima",
+  M:"Mike", N:"November", O:"Oscar", P:"Papa", Q:"Quebec", R:"Romeo", S:"Sierra", T:"Tango", U:"Uniform", V:"Victor", W:"Whiskey", X:"X-ray",
+  Y:"Yankee", Z:"Zulu", 0:"Zero", 1:"One", 2:"Two", 3:"Tree", 4:"Fower", 5:"Fife", 6:"Six", 7:"Seven", 8:"Eight", 9:"Niner" };
+$("nato").innerHTML = Object.entries(NATO).filter(([k]) => isNaN(k)).map(([k, v]) => `<span><b>${k}</b> ${v}</span>`).join("");
+$("word").oninput = () => $("spelled").textContent = [...$("word").value.toUpperCase()].map(c => NATO[c] || (c === " " ? "–" : "")).filter(Boolean).join("  ");
+table("pro", ["Say", "It means"], [
+  ["Over", "I have finished talking and expect a reply."],
+  ["Out", "I have finished and expect no reply."],
+  ["Roger", "I received and understood your last message."],
+  ["Wilco", "I understood and will do it."],
+  ["Say again", "Repeat your last message."],
+  ["Stand by", "Wait, I will come back to you."],
+  ["Affirmative / Negative", "Yes / No."],
+  ["Break", "A pause between parts of a message, or to cut in with something urgent."],
+  ["Mayday (three times)", "Life is in danger. Everyone else stops talking."],
+  ["Pan-pan (three times)", "Urgent, but no immediate danger to life."],
+], -1);
+</script>
+</body></html>

@@ -95,6 +95,8 @@ Mesh radios on the map 2026-11-15: `mesh.py` reads MeshMonitor's `nodes` table (
 
 Big download 2026-11-15 (SSD, home Wi-Fi): the 52.7 GB full-text Wikipedia came down in about 27 minutes (up to 42 MB/s), dropped once at 49.9 GB and resumed by itself, passed its SHA-256 check (about 2.5 minutes) and opened in Kiwix; a full-text search of it took 0.24 s and deck search 1.1 s. Memory available stayed near 2.7 GB during the download and 2.3 GB after the first searches; temperature stayed under 51 C. Five new collections were added the same day (12 in all); each resolved against the live catalog.
 
+Comms tools 2026-11-15: `static/comms.html` is a static page (no backend). In a preview on the Pi every Morse character round-tripped, FRS/GMRS channel maths matched the FCC table at channels 1, 7, 8, 14, 15 and 22, and playback scheduled the right tones. Not heard or seen by the owner yet; phrase translations are unreviewed; the tap key was not tried on a touch screen. RepeaterBook data may not be bundled offline without written permission (their API wiki, checked that day), so no repeater lookup.
+
 **Not yet tested:** the 14 GB compact Wikipedia; long use of the 53 GB one by several people at once.
 
 ## Next work, in order
