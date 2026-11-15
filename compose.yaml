@@ -43,7 +43,7 @@ services:
         source: /media
         target: /media
         bind: { propagation: rslave }
-      # Docker's socket: status lights, and start / stop / restart of the four other apps
+      # Docker's socket: status lights, and start / stop / restart of the other apps
       # (services.py allows nothing else). ":ro" does not limit what can be asked over a socket.
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
@@ -86,7 +86,7 @@ services:
     # Runs as root, which it needs because /srv/nomad and all downloads are root-owned.
     image: sigoden/dufs:v0.47.0
     # --hidden only trims the listing: the app's own bookkeeping files stay out of the way.
-    command: ["--allow-all", "--hidden", "library.xml,library.xml.tmp,*.part,.flatnotes,*.places.db,*.places.db.tmp,kolibri", "/srv"]
+    command: ["--allow-all", "--hidden", "library.xml,library.xml.tmp,*.part,.flatnotes,*.places.db,*.places.db.tmp,kolibri,mesh", "/srv"]
     ports: ["8083:5000"]
     volumes:
       - ${NOMAD_DATA:-/srv/nomad}:/srv
@@ -105,6 +105,44 @@ services:
     ports: ["8085:8085", "8086:8086"]
     volumes:
       - ${NOMAD_DATA:-/srv/nomad}/kolibri:/kolibri
+
+  # ---- Mesh radio (Meshtastic): text other radios with no cell service or internet ----
+  # Two parts. mesh-bridge passes the USB radio to the network; meshmonitor is the web page.
+  mesh-bridge:
+    <<: *defaults
+    image: ghcr.io/yeraze/meshtastic-serial-bridge:1.1.4
+    # The whole /dev folder is shared (not one device), so the radio can be unplugged and plugged
+    # back in, or be absent at start-up, without the container failing. The two rules are the only
+    # device access it gets: USB serial ports (166 = ttyACM, 188 = ttyUSB).
+    volumes:
+      - /dev:/dev
+    device_cgroup_rules: ["c 166:* rmw", "c 188:* rmw"]
+    environment:
+      # install.sh adds a rule that gives any plugged-in Meshtastic-style USB radio this fixed name.
+      SERIAL_DEVICE: ${MESH_RADIO:-/dev/pi-nomad-radio}
+      DEVICE_TIMEOUT: "60"            # no radio: it waits, gives up, and Docker starts it again
+    tmpfs: ["/tmp:size=10M"]
+
+  meshmonitor:
+    <<: *defaults
+    image: ghcr.io/yeraze/meshmonitor:4.17.3
+    ports: ["8087:3001"]
+    depends_on: [mesh-bridge]
+    volumes:
+      - ${NOMAD_DATA:-/srv/nomad}/mesh:/data
+      - /etc/localtime:/etc/localtime:ro
+    tmpfs: ["/data/logs:size=10M", "/tmp:size=50M"]
+    environment:
+      NODE_ENV: production
+      MESHTASTIC_NODE_IP: mesh-bridge
+      MESHTASTIC_NODE_PORT: "4403"
+      ACCESS_LOG_ENABLED: "false"
+      # The deck is reached by several addresses (home Wi-Fi, Ethernet, hotspot, name), all plain
+      # HTTP. Without these three, any address but localhost gets an error and logins do not stick.
+      ALLOWED_ORIGINS: "*"
+      COOKIE_SECURE: "false"
+      IFRAME_ALLOWED_ORIGINS: "*"     # lets it show under the dashboard's top bar
+    # It has its own login (first run: admin / changeme), separate from the deck's admin PIN.
 
 networks:
   nomad:

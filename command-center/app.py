@@ -27,7 +27,7 @@ import zim
 
 DATA = os.environ.get("NOMAD_DATA", "/data")
 STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
-FOLDERS = ["zim", "maps", "notes", "books", "kolibri"]
+FOLDERS = ["zim", "maps", "notes", "books", "kolibri", "mesh"]
 MAX_BODY = 64 * 1024     # our JSON requests are tiny; refuse anything that is not
 # Text files shrink to about a quarter when compressed (the map library alone is 1 MB), which
 # matters on a hotspot. The result is kept in memory, keyed by the file's date and size.

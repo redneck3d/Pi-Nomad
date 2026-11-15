@@ -3,7 +3,7 @@
 <title>Pi-Nomad</title><meta name="theme-color" content="#141c2d">
 <link rel="icon" type="image/png" href="/img/favicon.png"><link rel="apple-touch-icon" href="/img/apple-touch-icon.png"><link rel="stylesheet" href="/style.css">
 <style>
-  /* The Library, Notes, Data Tools and Files are separate apps with no link home.
+  /* The Library, Notes, Mesh Radio, Data Tools and Files are separate apps with no link home.
      This page shows one of them under a slim Pi-Nomad bar, so the way back is always there. */
   html, body { height:100%; }
   body { display:flex; flex-direction:column; }
@@ -25,8 +25,8 @@
   <a class="out" id="out" target="_blank" rel="noopener" title="Open this app in its own tab"><span>Open in its own tab&nbsp;</span>&#8599;</a>
 </div>
 <script>
-// Only these four apps, and only a plain path on them, can be shown here.
-const APPS = { library: ["Information Library", 8080], notes: ["Notes", 8081], tools: ["Data Tools", 8082], files: ["Files", 8083] };
+// Only these apps, and only a plain path on them, can be shown here.
+const APPS = { library: ["Information Library", 8080], notes: ["Notes", 8081], tools: ["Data Tools", 8082], files: ["Files", 8083], mesh: ["Mesh Radio", 8087] };
 const q = new URLSearchParams(location.search), app = APPS[q.get("app")];
 let path = q.get("path") || "/";
 if (!path.startsWith("/") || path.startsWith("//") || path.includes("\\")) path = "/";

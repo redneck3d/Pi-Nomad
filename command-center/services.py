@@ -14,7 +14,7 @@ import urllib.parse
 PROJECT = os.environ.get("COMPOSE_PROJECT", "pi-nomad")
 DOCKER_SOCK = os.environ.get("DOCKER_SOCK", "/var/run/docker.sock")
 CONTROLLABLE = {"kiwix": "Information Library", "flatnotes": "Notes", "cyberchef": "Data Tools", "files": "Files",
-                "kolibri": "Education"}
+                "kolibri": "Education", "meshmonitor": "Mesh Radio"}
 ACTIONS = ("start", "stop", "restart")
 STOP_WAIT = 10          # seconds Docker gives an app to shut down cleanly before ending it
 
@@ -63,7 +63,7 @@ def states():
 
 
 def act(service, action):
-    """Start, stop or restart one of the four apps. Returns its state afterwards."""
+    """Start, stop or restart one of the apps. Returns its state afterwards."""
     if service not in CONTROLLABLE:
         raise ValueError("That app cannot be started or stopped from here")
     if action not in ACTIONS:

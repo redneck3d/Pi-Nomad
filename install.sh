@@ -19,7 +19,7 @@ fi
 systemctl enable --now docker
 
 echo "==> Creating data directories in $NOMAD_DATA"
-mkdir -p "$NOMAD_DATA"/{zim,notes,maps,books,kolibri}
+mkdir -p "$NOMAD_DATA"/{zim,notes,maps,books,kolibri,mesh}
 if [[ ! -f "$NOMAD_DATA/zim/library.xml" ]]; then
   cat > "$NOMAD_DATA/zim/library.xml" <<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -68,6 +68,15 @@ UNIT
 systemctl daemon-reload
 systemctl enable --now pi-nomad-power.path
 touch "$POWER_DIR/helper-installed"
+
+echo "==> Naming the mesh radio (any plugged-in Meshtastic USB radio becomes /dev/pi-nomad-radio)"
+# USB makers used by Meshtastic boards: Espressif (Heltec V3/V4, T-Beam S3), Silicon Labs CP210x,
+# WCH CH340/CH9102, Adafruit and Seeed (nRF52 boards such as RAK and T1000).
+cat > /etc/udev/rules.d/99-pi-nomad-radio.rules <<'RULE'
+SUBSYSTEM=="tty", ENV{ID_VENDOR_ID}=="303a|10c4|1a86|239a|2886", SYMLINK+="pi-nomad-radio"
+RULE
+udevadm control --reload
+udevadm trigger --subsystem-match=tty || true
 
 echo "==> Installing stack to $INSTALL_DIR"
 mkdir -p "$INSTALL_DIR"
