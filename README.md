@@ -75,7 +75,7 @@ The Education tile opens Kolibri, an offline learning platform with courses such
 
 ## Mesh Radio (Meshtastic)
 
-Plug a Meshtastic radio into one of the Pi's USB ports (antenna on first) and open **Mesh Radio** on the dashboard. It is [MeshMonitor](https://github.com/yeraze/meshmonitor): messages, the list of radios heard, and a map. It has its own login, separate from the admin PIN: the first time it is `admin` / `changeme`, and it asks you to change that. The installer gives the radio the fixed name `/dev/pi-nomad-radio`, so it can be unplugged and plugged back in. Its data is in `/srv/nomad/mesh`. The map inside MeshMonitor needs internet for now.
+Plug a Meshtastic radio into one of the Pi's USB ports (antenna on first) and open **Mesh Radio** on the dashboard. It is [MeshMonitor](https://github.com/yeraze/meshmonitor): messages, the list of radios heard, and a map. It has its own login, separate from the admin PIN: the first time it is `admin` / `changeme`, and it asks you to change that. The installer gives the radio the fixed name `/dev/pi-nomad-radio`, so it can be unplugged and plugged back in. Its data is in `/srv/nomad/mesh`. The map inside MeshMonitor needs internet, so the deck's own **Maps** page shows the radios instead: a **Mesh radios** button appears there, and every radio that has shared a position is marked on the offline map (tap one for its name, hops and battery).
 
 ## Finding places on the map
 

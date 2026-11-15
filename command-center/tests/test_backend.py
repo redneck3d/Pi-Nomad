@@ -20,7 +20,9 @@ os.makedirs(os.environ["ZIM_DIR"]); os.makedirs(os.environ["MAPS_DIR"]); os.make
 
 import zipfile  # noqa: E402
 
-import app, auth, backup, books, jobs, maps, places, power, search, services, system, zim  # noqa: E402
+import sqlite3  # noqa: E402
+
+import app, auth, backup, books, jobs, maps, mesh, places, power, search, services, system, zim  # noqa: E402
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
 CH = '<html xmlns="http://www.w3.org/1999/xhtml"><head><title>{0}</title></head><body><h1>{0}</h1><p>Text of {0}.</p>{1}</body></html>'
@@ -1188,6 +1190,68 @@ class FakeDocker(http.server.BaseHTTPRequestHandler):
         was = self.containers[svc]
         self.containers[svc] = "exited" if action == "stop" else "running"
         self._send(304 if (action == "stop") == (was == "exited") and action != "restart" else 204)
+
+
+class MeshTests(unittest.TestCase):
+    """Mesh radios for the map are read from MeshMonitor's own database, never written."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.saved, mesh.DATA = mesh.DATA, self.tmp
+
+    def tearDown(self):
+        mesh.DATA = self.saved
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def make(self, columns, rows):
+        os.makedirs(os.path.join(self.tmp, "mesh"))
+        con = sqlite3.connect(mesh.db_path())
+        con.execute(f"create table nodes ({', '.join(columns)})")
+        con.executemany(f"insert into nodes values ({', '.join('?' * len(columns))})", rows)
+        con.commit(); con.close()
+
+    def test_no_mesh_radio_yet(self):
+        self.assertEqual(mesh.nodes(), {"available": False, "nodes": [], "total": 0})
+
+    def test_only_radios_with_a_real_position_are_listed(self):
+        cols = ["nodeId", "longName", "shortName", "latitude", "longitude", "altitude", "lastHeard", "hopsAway", "snr",
+                "batteryLevel", "viaMqtt", "hideFromMap", "isIgnored", "positionOverrideEnabled", "latitudeOverride",
+                "longitudeOverride"]
+        self.make(cols, [
+            ("!1", "Corey", "CM", 42.2772736, -83.3552384, 245.0, 500, 0, 7.0, 101, 0, 0, 0, 0, None, None),
+            ("!2", "No fix", "NF", None, None, None, 400, 1, 5.0, None, 0, 0, 0, 0, None, None),
+            ("!3", "Null Island", "NI", 0, 0, None, 300, 1, 5.0, None, 0, 0, 0, 0, None, None),
+            ("!4", "Hidden", "H", 42.0, -83.0, None, 200, 1, 5.0, None, 0, 1, 0, 0, None, None),
+            ("!5", "Ignored", "I", 42.0, -83.0, None, 190, 1, 5.0, None, 0, 0, 1, 0, None, None),
+            ("!6", "Bad", "B", 420.0, -83.0, None, 180, 1, 5.0, None, 0, 0, 0, 0, None, None),
+            ("!7", "Moved by hand", "MH", 10.0, 10.0, None, 100, 2, 5.0, 80, 1, 0, 0, 1, 42.5, -83.5),
+            ("!8", None, None, "north", "west", None, 90, 2, 5.0, 80, 0, 0, 0, 0, None, None),      # text, not numbers
+        ])
+        got = mesh.nodes()
+        self.assertEqual((got["available"], got["total"]), (True, 8))
+        self.assertEqual([n["id"] for n in got["nodes"]], ["!1", "!7"])
+        self.assertEqual(got["nodes"][0], {"id": "!1", "name": "Corey", "short": "CM", "lat": 42.277274, "lon": -83.355238,
+                                           "alt": 245.0, "heard": 500, "hops": 0, "snr": 7.0, "battery": 101, "internet": False})
+        self.assertEqual((got["nodes"][1]["lat"], got["nodes"][1]["lon"], got["nodes"][1]["internet"]), (42.5, -83.5, True))
+
+    def test_a_changed_or_broken_database_is_reported_not_fatal(self):
+        self.make(["id", "name"], [(1, "x")])
+        got = mesh.nodes()
+        self.assertEqual((got["available"], got["nodes"]), (False, []))
+        self.assertIn("Could not read", got["error"])
+        with open(mesh.db_path(), "wb") as f:
+            f.write(b"not a database at all")
+        self.assertFalse(mesh.nodes()["available"])
+
+    def test_older_layouts_without_the_optional_columns_still_work(self):
+        self.make(["nodeId", "latitude", "longitude"], [("!9", 42.3, -83.3)])
+        self.assertEqual(mesh.nodes()["nodes"][0]["name"], "!9")
+
+    def test_the_database_is_never_changed(self):
+        self.make(["nodeId", "latitude", "longitude"], [("!9", 42.3, -83.3)])
+        before = open(mesh.db_path(), "rb").read()
+        mesh.nodes()
+        self.assertEqual(open(mesh.db_path(), "rb").read(), before)
 
 
 class ServiceControlTests(unittest.TestCase):

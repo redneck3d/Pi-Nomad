@@ -24,6 +24,13 @@
   #hits b { display:block; font-weight:600; overflow-wrap:anywhere; }
   #hits small { color:var(--mut); }
   #hits li.note { cursor:default; color:var(--mut); } #hits li.note:hover { background:none; }
+  #mesh { min-height:38px; padding:.25rem .7rem; display:none; }
+  #mesh.on { border-color:var(--teal); color:var(--teal); }
+  .radio { display:flex; align-items:center; gap:.3rem; cursor:pointer; font-weight:600; font-size:.8rem; line-height:1; color:#141c2d; }
+  .radio i { width:14px; height:14px; border-radius:50%; background:#35ad9e; border:2px solid #fff; box-shadow:0 0 0 1px #141c2d; }
+  .radio.net i { background:#8fb8de; }
+  .radio span { background:rgba(255,255,255,.9); border-radius:5px; padding:.12rem .3rem; }
+  .maplibregl-popup-content { color:#141c2d; font-size:.9rem; } .maplibregl-popup-content b { display:block; font-size:1rem; }
   #map { position:absolute; inset:0; }
   #empty { position:absolute; inset:0; display:none; align-items:center; justify-content:center; text-align:center; padding:2rem; }
   #empty h2 { font-size:1.6rem; margin:0 0 .4rem; }
@@ -31,6 +38,7 @@
 <body>
 <div id="bar"><a class="home" href="/" title="Back to the dashboard"><img src="/img/mark.png" alt="" width="192" height="145"><span>Pi-<b>Nomad</b></span></a><select id="file" aria-label="Map region"></select>
   <form id="find" role="search"><input id="q" type="search" placeholder="Find a town, street or place" aria-label="Find a town, street or place" autocomplete="off" maxlength="80"><button>Find</button><ul id="hits"></ul></form>
+  <button id="mesh" type="button" title="Show or hide the mesh radios that have shared a position">Mesh radios</button>
   <a href="/maps/manage.html">Manage regions</a></div>
 <div id="map"></div>
 <div id="empty"><div><h2>No offline maps yet</h2><p class="mut">Download a region (for example Michigan) while you have internet.</p>
@@ -69,7 +77,44 @@ async function show(file) {
   map.addControl(new maplibregl.ScaleControl({ unit: "imperial" }), "bottom-left");
   localStorageSafe("set", file);
   pin = null; hits = []; document.getElementById("hits").innerHTML = ""; document.getElementById("q").value = "";
+  radios = []; drawRadios();
 }
+
+// ----- mesh radios: positions come from the Mesh Radio app's own records on this device -----
+let radios = [], radioData = null, radiosOn = localStorageSafe("get", "meshOn") !== "0";
+function ago(sec) {
+  const d = Date.now() / 1000 - sec;
+  if (!(d >= 0 && d < 7 * 86400)) return "";        // the radio's clock can be wrong until it gets the time
+  return d < 90 ? "just now" : d < 5400 ? Math.round(d / 60) + " min ago" : d < 129600 ? Math.round(d / 3600) + " hours ago" : Math.round(d / 86400) + " days ago";
+}
+function drawRadios() {
+  const btn = document.getElementById("mesh");
+  radios.forEach(m => m.remove()); radios = [];
+  if (!radioData || !radioData.available) { btn.style.display = "none"; return; }
+  btn.style.display = "inline-block";
+  btn.classList.toggle("on", radiosOn);
+  btn.textContent = "Mesh radios: " + radioData.nodes.length;
+  if (!radiosOn || !map) return;
+  radios = radioData.nodes.map(n => {
+    const el = document.createElement("div");
+    el.className = "radio" + (n.internet ? " net" : "");
+    el.innerHTML = "<i></i><span>" + esc(n.short || n.name) + "</span>";
+    const facts = [n.heard && ago(n.heard) ? "Heard " + ago(n.heard) : "",
+                   n.internet ? "Heard through an internet relay" : n.hops === 0 ? "Heard directly" : n.hops ? n.hops + (n.hops === 1 ? " hop away" : " hops away") : "",
+                   n.battery != null ? (n.battery > 100 ? "On mains power" : "Battery " + n.battery + "%") : "",
+                   n.alt != null ? "Altitude " + Math.round(n.alt * 3.28084) + " ft" : ""].filter(Boolean);
+    return new maplibregl.Marker({ element: el, anchor: "left", offset: [-9, 0] }).setLngLat([n.lon, n.lat])
+      .setPopup(new maplibregl.Popup({ offset: 12 }).setHTML("<b>" + esc(n.name) + "</b>" + facts.map(esc).join("<br>"))).addTo(map);
+  });
+}
+async function loadRadios() {
+  if (document.hidden) return;
+  try { radioData = await (await fetch("/api/mesh/nodes")).json(); } catch (e) { return; }   // keep the last picture
+  drawRadios();
+}
+document.getElementById("mesh").onclick = () => { radiosOn = !radiosOn; localStorageSafe("set", radiosOn ? "1" : "0", "meshOn"); drawRadios(); };
+setInterval(loadRadios, 30000);
+document.addEventListener("visibilitychange", loadRadios);
 
 // ----- place search: names come from the map file itself, so this works with no internet -----
 async function find() {
@@ -103,8 +148,9 @@ document.getElementById("hits").onclick = e => { const li = e.target.closest("li
 document.getElementById("q").addEventListener("search", () => { if (!document.getElementById("q").value) document.getElementById("hits").innerHTML = ""; });
 document.addEventListener("keydown", e => { if (e.key === "Escape") document.getElementById("hits").innerHTML = ""; });
 
-function localStorageSafe(op, v) {   // remembering the last map is a nicety; never fail on it
-  try { return op === "set" ? localStorage.setItem("lastMap", v) : localStorage.getItem("lastMap"); } catch (e) { return null; }
+function localStorageSafe(op, v, key = "lastMap") {   // remembering small choices is a nicety; never fail on it
+  if (op === "get" && v) key = v;
+  try { return op === "set" ? localStorage.setItem(key, v) : localStorage.getItem(key); } catch (e) { return null; }
 }
 
 (async () => {
@@ -114,8 +160,9 @@ function localStorageSafe(op, v) {   // remembering the last map is a nicety; ne
   sel.replaceChildren(...files.map(f => new Option(f.name.replace(/\.pmtiles$/, ""), f.name)));
   const last = localStorageSafe("get");
   if (files.some(f => f.name === last)) sel.value = last;
-  sel.onchange = () => show(sel.value);
-  show(sel.value);
+  sel.onchange = () => show(sel.value).then(loadRadios);
+  await show(sel.value);
+  loadRadios();
 })();
 </script>
 </body></html>

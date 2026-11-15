@@ -20,7 +20,7 @@ Owner: Mike, who runs a 3D printing and printer repair business in Wayne, Michig
   - `services.py` Docker access: status lights (`states()`) and Stop / Start / Restart for the four other apps (`POST /api/services {service, action}`, Apps panel on the dashboard). It only acts on containers of this compose project named in `CONTROLLABLE` (kiwix, flatnotes, cyberchef, files) with `start|stop|restart`; the Command Center cannot stop itself. A stopped app stays stopped across reboots (`restart: unless-stopped`) until Start is pressed. The owner agreed to this after the risk was explained; do not widen the list of apps or actions without asking him.
   - `static/`: dashboard (`index.html`), Content Manager (`zim.html`), map viewer (`maps/index.html`), map region manager (`maps/manage.html`), bookshelf (`books/`). All share `style.css` (colours taken from the logo) and `shared.js`. `img/` holds the logo cut-outs and icons; `fonts/` bundles Outfit (OFL), so the design needs no internet.
   - `Dockerfile`: 3 stages: Go builds `pmtiles`; Node fetches maplibre-gl@5, pmtiles@4, @protomaps/basemaps@5 plus Protomaps fonts/sprites from GitHub; Python runs the app.
-  - `tests/test_backend.py`: 68 unit tests. Run: `cd command-center && python3 tests/test_backend.py`
+  - `tests/test_backend.py`: 73 unit tests. Run: `cd command-center && python3 tests/test_backend.py`
 - `kolibri/Dockerfile`: Kolibri 0.19.5 from PyPI on `python:3.12-slim` (plus `iproute2`). There is no current upstream Docker image (Docker Hub ones are 6-7 years old). Data in `/srv/nomad/kolibri`. Ports 8085 (app) and 8086 (zipped interactive lessons) must be published with unchanged numbers. Kolibri sends `X-Frame-Options: DENY`, so its tile opens in a new tab and it is not in `app.html`. It has its own accounts and first-run setup, which the owner does himself. Measured on the Pi 2026-11-14 in a throwaway container: 60 s build, 4 s start, about 130 MB resident idle, image about 700 MB. Not measured: memory with lessons loaded and learners active.
 - `tools/move-to-ssd.sh` moves the whole system from the SD card to an NVMe SSD (`--check` is a dry run; the real run needs sudo and the word ERASE). It repartitions the SSD like a Pi OS card (512 MB boot FAT32 + ext4), rsyncs `/` and `/boot/firmware` with the SD card only read, and rewrites the disk ID (`PARTUUID`) in the copy's `cmdline.txt` and `fstab`. Docker is stopped for the copy, so anything changed afterwards stays on the SD card only. The bootloader order is `0xf461` (SD, then NVMe, then USB), so the Pi boots from the SSD only when no SD card is fitted.
 - `install.sh` (Docker + data dirs + `docker compose up -d --build`), `hotspot.sh` (Wi-Fi AP via NetworkManager).
@@ -89,14 +89,16 @@ Mesh Radio 2026-11-15: a Heltec WiFi LoRa 32 V4 (plain V4, USB ID `303a:1001`, s
 - MeshMonitor keeps the radio's address in its database (`sources.config`), seeded from `MESHTASTIC_NODE_IP` only on first run. Renaming the bridge service later means editing that row or the Sources page.
 - Once, right after the reinstall, the sync stalled with no data until bridge and MeshMonitor were restarted in that order; the radio had re-enumerated on USB. Not reproduced since.
 - `docker stats` shows 0 B on this Pi (memory cgroup off); use `docker top <name> -o pid,rss,comm`.
-Not tested: login while inside the top-bar frame (owner's account), sending, unplug/replug, offline map, GPS.
+The owner confirmed login under the top bar and sending a message. Not tested: unplug/replug, GPS.
+
+Mesh radios on the map 2026-11-15: `mesh.py` reads MeshMonitor's `nodes` table (read-only, through the `/data` mount; WAL mode reads fine) and `/api/mesh/nodes` feeds a "Mesh radios" button and markers on `/maps/`. Checked in a preview on the Pi with the real data: 6 of 15 radios had a position and showed with pop-ups. Why not MeshMonitor's own map: it takes XYZ tile URLs only (raster, or vector with an uploaded MapLibre style), the URL must be absolute, and the deck has several addresses and no raster renderer. The node `lastHeard` values follow the radio's clock, which was months off before it got the time, so the map hides ages older than a week.
 
 **Not yet tested:** the 14 GB and 53 GB Wikipedias on 4 GB RAM; the fan reading.
 
 ## Next work, in order
 
 1. Finish the Pi checks above: hotspot after a reboot.
-2. Mesh Radio follow-ups: offline map inside MeshMonitor (it wants XYZ tile URLs, not PMTiles, and its page security rules list the allowed tile hosts), GPS (the radio reported no position), a real unplug/replug test, sending a message, and adding `/srv/nomad/mesh` to the backup.
+2. Mesh Radio follow-ups: GPS (the radio reported no position), a real unplug/replug test, sending a message, and adding `/srv/nomad/mesh` to the backup.
 3. First-run setup wizard; auto-update option.
 ## Working style
 

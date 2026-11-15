@@ -18,6 +18,7 @@ import backup
 import books
 import jobs
 import maps
+import mesh
 import places
 import power
 import search
@@ -377,6 +378,8 @@ class Handler(SimpleHTTPRequestHandler):
                     here = (None, None)
                 return places.search(q.get("file", ""), q.get("q", ""), *here)
             return self._guard(find)
+        if p == "/api/mesh/nodes":
+            return self._json(mesh.nodes())
         if p == "/api/maps/list":
             return self._json(maps.list_maps())
         if not self._static(p):
