@@ -331,6 +331,11 @@ def _file_sha256(path, job):
             h.update(chunk)
 
 
+def _resumed_note(attempt):
+    """What the job says once data is flowing: nothing, or that it picked up after a drop."""
+    return "Resumed after a dropped connection" if attempt else ""
+
+
 def _download(job, url, meta, retries=6):
     name = _safe_filename(url)
     dest = os.path.join(ZIM_DIR, name)
@@ -354,6 +359,7 @@ def _download(job, url, meta, retries=6):
                     have = 0
                     job.total = int(r.headers.get("Content-Length") or expect)
                 job.done = have
+                job.message = _resumed_note(attempt)      # replaces "Connection lost, retrying" once it is back
                 with open(part, "ab" if have else "wb") as f:
                     while True:
                         if job.cancel.is_set():

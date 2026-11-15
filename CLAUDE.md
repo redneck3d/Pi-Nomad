@@ -93,7 +93,9 @@ The owner confirmed login under the top bar and sending a message. Not tested: u
 
 Mesh radios on the map 2026-11-15: `mesh.py` reads MeshMonitor's `nodes` table (read-only, through the `/data` mount; WAL mode reads fine) and `/api/mesh/nodes` feeds a "Mesh radios" button and markers on `/maps/`. Checked in a preview on the Pi with the real data: 6 of 15 radios had a position and showed with pop-ups. Why not MeshMonitor's own map: it takes XYZ tile URLs only (raster, or vector with an uploaded MapLibre style), the URL must be absolute, and the deck has several addresses and no raster renderer. The node `lastHeard` values follow the radio's clock, which was months off before it got the time, so the map hides ages older than a week.
 
-**Not yet tested:** the 14 GB and 53 GB Wikipedias on 4 GB RAM; the fan reading.
+Big download 2026-11-15 (SSD, home Wi-Fi): the 52.7 GB full-text Wikipedia came down in about 27 minutes (up to 42 MB/s), dropped once at 49.9 GB and resumed by itself, passed its SHA-256 check (about 2.5 minutes) and opened in Kiwix; a full-text search of it took 0.24 s and deck search 1.1 s. Memory available stayed near 2.7 GB during the download and 2.3 GB after the first searches; temperature stayed under 51 C. Five new collections were added the same day (12 in all); each resolved against the live catalog.
+
+**Not yet tested:** the 14 GB compact Wikipedia; long use of the 53 GB one by several people at once.
 
 ## Next work, in order
 

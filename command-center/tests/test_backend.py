@@ -380,7 +380,9 @@ class DownloadTests(unittest.TestCase):
         srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), FlakyServer)
         threading.Thread(target=srv.serve_forever, daemon=True).start()
         url = f"http://127.0.0.1:{srv.server_port}/zim/flaky_2026-01.zim"
-        orig_safe, orig_sleep = zim._safe_filename, time.sleep
+        orig_safe, orig_sleep, orig_note = zim._safe_filename, time.sleep, zim._resumed_note
+        notes = []
+        zim._resumed_note = lambda attempt: notes.append(orig_note(attempt)) or notes[-1]
         zim._safe_filename = lambda u: "flaky_2026-01.zim"
         zim.time.sleep = lambda s: None   # don't actually back off in the test
         try:
@@ -389,8 +391,11 @@ class DownloadTests(unittest.TestCase):
         finally:
             zim._safe_filename = orig_safe
             zim.time.sleep = orig_sleep
+            zim._resumed_note = orig_note
             srv.shutdown()
         self.assertEqual(job.state, "done", job.message)
+        # Once it reconnects, the job stops saying "Connection lost, retrying" (seen on the 53 GB Wikipedia).
+        self.assertEqual(notes, ["", "Resumed after a dropped connection"])
         self.assertEqual(open(os.path.join(zim.ZIM_DIR, "flaky_2026-01.zim"), "rb").read(), FlakyServer.data)
         self.assertEqual(FlakyServer.hits, 2)   # one failed + one resumed
         self.assertFalse(os.path.exists(os.path.join(zim.ZIM_DIR, "flaky_2026-01.zim.part")))
