@@ -118,6 +118,8 @@ The full stack was run on a PC with Docker Desktop (amd64), with the data on a r
 
 ## Verified on the Pi (2026-11-09)
 
+It also runs on a Raspberry Pi 400 (4 GB): the same installer brought up the full stack from a microSD card with no changes, though the first build takes about 9 minutes there. The SSD mover in `tools/` is for a Pi 5 with an NVMe drive only.
+
 On a Raspberry Pi 5 (4 GB, Debian 13 trixie), `install.sh` installed Docker and started all five apps as arm64. A real ZIM download opened in Kiwix, a real Detroit map rendered in a browser from the Pi, and Notes and Files could both save and delete. After a real reboot, everything came back on its own within about 40 seconds. Eleven libraries (14 GB, the largest 3.7 GB) and a 1.1 GB detailed Michigan map then downloaded cleanly.
 
 ## Combined version (2026-11-12)
