@@ -5,6 +5,7 @@
 #   sudo ./hotspot.sh [NAME]     turn the hotspot on (asks for the Wi-Fi password; NAME defaults to Pi-NOMAD)
 #   sudo ./hotspot.sh off        turn it off and go back to the Wi-Fi the Pi used before
 #   ./hotspot.sh status          show whether it is on
+#   sudo ./hotspot.sh password   show the Wi-Fi password that was set
 #
 # The hotspot takes over the Pi's Wi-Fi. If you are connected to the Pi over Wi-Fi when you
 # turn it on, you will be cut off: use Ethernet, or a screen and keyboard.
@@ -24,10 +25,16 @@ status() {
 
 case "${1:-}" in
   status) status; exit 0 ;;
-  -h|--help) sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+  -h|--help) sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
 esac
 
 if [[ $EUID -ne 0 ]]; then echo "Run with sudo." >&2; exit 1; fi
+
+if [[ "${1:-}" == "password" ]]; then
+  if ! nmcli -t -f NAME con show | grep -qx "$CON"; then echo "No hotspot is set up." >&2; exit 1; fi
+  echo "Wi-Fi password for '$(nmcli -g 802-11-wireless.ssid con show "$CON")': $(nmcli -s -g 802-11-wireless-security.psk con show "$CON")"
+  exit 0
+fi
 
 if [[ "${1:-}" == "off" ]]; then
   nmcli con down "$CON" >/dev/null 2>&1 || true
@@ -53,12 +60,15 @@ fi
 
 nmcli con delete "$CON" >/dev/null 2>&1 || true
 # WPA2 with AES only: phones warn about, or refuse, the older modes NetworkManager would also offer.
+# pmf disable: left at its default the hotspot also offers protected management frames. On a Pi 400 an
+# iPhone then said "incorrect password" and its attempts never reached the Pi's log; it joined once this
+# was off (and the network had been forgotten on the phone, so which of the two cured it is not proven).
 # The priority makes the hotspot win over a saved home Wi-Fi at boot, so the deck always comes up as a hotspot.
 nmcli con add type wifi ifname "$DEV" con-name "$CON" ssid "$SSID" \
   connection.autoconnect yes connection.autoconnect-priority 10 \
   802-11-wireless.mode ap 802-11-wireless.band bg \
   ipv4.method shared ipv6.method disabled \
-  wifi-sec.key-mgmt wpa-psk wifi-sec.proto rsn wifi-sec.pairwise ccmp wifi-sec.group ccmp \
+  wifi-sec.key-mgmt wpa-psk wifi-sec.proto rsn wifi-sec.pairwise ccmp wifi-sec.group ccmp wifi-sec.pmf disable \
   wifi-sec.psk "$PASS" >/dev/null
 if ! nmcli con up "$CON" >/dev/null; then
   echo "The hotspot could not start. Removing it and going back to the normal Wi-Fi." >&2
@@ -68,3 +78,4 @@ if ! nmcli con up "$CON" >/dev/null; then
 fi
 echo "Hotspot '$SSID' is on. Join it and open http://10.42.0.1/"
 echo "It will come back by itself after a restart. Turn it off with: sudo ./hotspot.sh off"
+echo "Forgot what you typed? Show it with: sudo ./hotspot.sh password"
