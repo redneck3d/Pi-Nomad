@@ -106,7 +106,7 @@ There are no logins on most of the apps, on purpose, so anyone on the deck's net
 
 ## Licence
 
-Pi-NOMAD is free to use, change and share for **non-commercial** purposes under the [PolyForm Noncommercial License 1.0.0](LICENSE.md). Personal use, hobby projects, schools, charities, emergency services and other non-profit organisations are all fine. **Selling it, or selling devices with it installed, is not allowed** without written permission from the author.
+Pi-NOMAD is free to use, change and share for **non-commercial** purposes under the [PolyForm Noncommercial License 1.0.0](LICENSE.md). Personal use, hobby projects, schools, charities, emergency services and other non-profit organisations are all fine. **Selling it, or selling devices with it installed, is not allowed** without written permission from the author, Michael P.
 
 The apps Pi-NOMAD installs are separate projects with their own licences. They are downloaded from their makers during install, not included in this repository:
 

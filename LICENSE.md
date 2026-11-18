@@ -1,4 +1,4 @@
-Required Notice: Copyright 2026 redneck3d (https://github.com/redneck3d/Pi-Nomad)
+Required Notice: Copyright 2026 Michael P (redneck3d) (https://github.com/redneck3d/Pi-Nomad)
 
 # PolyForm Noncommercial License 1.0.0
 
